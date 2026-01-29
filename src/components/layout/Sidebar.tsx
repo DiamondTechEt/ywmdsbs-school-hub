@@ -23,12 +23,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 export function Sidebar() {
   const { role, signOut, user } = useAuth();
   const [userName, setUserName] = useState<string>('');
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   // Emit sidebar width changes to parent
   useEffect(() => {
@@ -64,22 +66,54 @@ export function Sidebar() {
     }
   };
 
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
   const navItems = {
     super_admin: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/students', icon: GraduationCap, label: 'Students' },
-      { to: '/teachers', icon: Users, label: 'Teachers' },
-      { to: '/classes', icon: School, label: 'Classes' },
-      { to: '/subjects', icon: BookOpen, label: 'Subjects' },
-      { to: '/enrollments', icon: Users, label: 'Enrollments' },
-      { to: '/assignments', icon: BookOpen, label: 'Assignments' },
-      { to: '/class-teacher-assignments', icon: UserCheck, label: 'Class Teachers' },
-      { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
-      { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
-      { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-      { to: '/academic-years', icon: Calendar, label: 'Academic Years' },
-      { to: '/settings', icon: Settings, label: 'Settings' },
-      { to: '/profile-settings', icon: User, label: 'Profile Settings' },
+      {
+        category: 'Main',
+        items: [
+          { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+          { to: '/settings', icon: Settings, label: 'Settings' },
+          { to: '/profile-settings', icon: User, label: 'Profile Settings' },
+        ]
+      },
+      {
+        category: 'Academic Management',
+        items: [
+          { to: '/students', icon: GraduationCap, label: 'Students' },
+          { to: '/teachers', icon: Users, label: 'Teachers' },
+          { to: '/classes', icon: School, label: 'Classes' },
+          { to: '/subjects', icon: BookOpen, label: 'Subjects' },
+          { to: '/academic-years', icon: Calendar, label: 'Academic Years' },
+        ]
+      },
+      {
+        category: 'Assessment & Grading',
+        items: [
+          { to: '/enrollments', icon: Users, label: 'Enrollments' },
+          { to: '/assignments', icon: BookOpen, label: 'Assignments' },
+          { to: '/class-teacher-assignments', icon: UserCheck, label: 'Class Teachers' },
+          { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
+          { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
+        ]
+      },
+      {
+        category: 'Analytics',
+        items: [
+          { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+        ]
+      },
     ],
     teacher: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -185,34 +219,98 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <ul className="space-y-2">
-            {items.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200",
-                      isActive
-                        ? "bg-gray-900 text-white"
-                        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+          {role === 'super_admin' ? (
+            <div className="space-y-2">
+              {items.map((category) => (
+                <div key={category.category}>
+                  {/* Category header */}
+                  <button
+                    onClick={() => toggleCategory(category.category)}
+                    className={cn(
+                      "w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200",
+                      "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
                       "focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                    )
-                  }
-                  onClick={() => {
-                    if (window.innerWidth < 1024) {
-                      setIsMobileOpen(false);
-                    }
-                  }}
-                >
-                  <item.icon className="h-5 w-5 flex-shrink-0" />
-                  {!isCollapsed && (
-                    <span className="truncate">{item.label}</span>
+                    )}
+                  >
+                    {!isCollapsed && (
+                      <>
+                        {collapsedCategories.has(category.category) ? (
+                          <ChevronRight className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        <span className="font-semibold">{category.category}</span>
+                      </>
+                    )}
+                    {isCollapsed && (
+                      <span className="text-xs font-semibold truncate">
+                        {category.category.charAt(0)}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {/* Category items */}
+                  {!isCollapsed && !collapsedCategories.has(category.category) && (
+                    <ul className="mt-1 ml-4 space-y-1">
+                      {category.items.map((item) => (
+                        <li key={item.to}>
+                          <NavLink
+                            to={item.to}
+                            className={({ isActive }) =>
+                              cn(
+                                "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200",
+                                isActive
+                                  ? "bg-gray-900 text-white"
+                                  : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+                                "focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                              )
+                            }
+                            onClick={() => {
+                              if (window.innerWidth < 1024) {
+                                setIsMobileOpen(false);
+                              }
+                            }}
+                          >
+                            <item.icon className="h-5 w-5 flex-shrink-0" />
+                            <span className="truncate">{item.label}</span>
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
                   )}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {items.map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200",
+                        isActive
+                          ? "bg-gray-900 text-white"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+                        "focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                      )
+                    }
+                    onClick={() => {
+                      if (window.innerWidth < 1024) {
+                        setIsMobileOpen(false);
+                      }
+                    }}
+                  >
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    {!isCollapsed && (
+                      <span className="truncate">{item.label}</span>
+                    )}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          )}
         </nav>
 
         {/* Footer */}

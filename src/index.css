@@ -178,7 +178,7 @@ All colors MUST be HSL.
   }
 
   .accent-blob {
-    @apply absolute rounded-full blur-[100px] opacity-20 animate-pulse-slow;
+    @apply absolute rounded-full blur-[100px] opacity-20 animate-pulse-slow overflow-hidden;
   }
 
   .glass-card {

@@ -30,12 +30,14 @@ export function LandingPage() {
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
   return (
-    <div className="min-h-screen mesh-gradient text-foreground selection:bg-primary/20 overflow-x-hidden relative">
+    <div className="min-h-screen w-full mesh-gradient text-foreground selection:bg-primary/20 overflow-x-hidden">
       {/* Global Background Accents */}
-      <div className="accent-blob w-[500px] h-[500px] bg-primary/20 -top-48 -left-24" />
-      <div className="accent-blob w-[600px] h-[600px] bg-secondary/15 top-1/4 -right-48" />
-      <div className="accent-blob w-[400px] h-[400px] bg-primary/10 bottom-1/4 -left-32" />
-      <div className="accent-blob w-[500px] h-[500px] bg-secondary/10 -bottom-48 right-0" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="accent-blob w-[500px] h-[500px] bg-primary/20 -top-48 -left-24" />
+        <div className="accent-blob w-[600px] h-[600px] bg-secondary/15 top-1/4 -right-48" />
+        <div className="accent-blob w-[400px] h-[400px] bg-primary/10 bottom-1/4 -left-32" />
+        <div className="accent-blob w-[500px] h-[500px] bg-secondary/10 -bottom-48 right-0" />
+      </div>
 
       {/* Navigation */}
       <header className="fixed top-0 w-full z-[100] border-b border-white/10 bg-white/30 backdrop-blur-xl">
@@ -325,14 +327,8 @@ export function LandingPage() {
       </section>
 
       {/* Modern Footer */}
-      <footer className="bg-primary 
-  text-white 
-  absolute z-10 
-  mt-20  
-  px-4 md:px-6 
-  py-12 
-">
-        <div className="container mx-auto">
+      <footer className="bg-primary text-white z-10 mt-20 w-full">
+        <div className="container mx-auto px-4 md:px-6 pt-12 pb-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 md:gap-12 mb-12 md:mb-16">
             <div className="col-span-1 sm:col-span-2 space-y-6">
               <div className="flex items-center space-x-3">
@@ -374,8 +370,6 @@ export function LandingPage() {
               </ul>
             </div>
           </div>
-
-
         </div>
       </footer>
     </div>

@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
+// `lovable-tagger` intentionally removed — provide a no-op stub so dev mode keeps working without that package
+const componentTagger = (): any => undefined;
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({

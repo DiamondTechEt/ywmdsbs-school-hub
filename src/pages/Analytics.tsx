@@ -222,7 +222,7 @@ export default function Analytics() {
                   <SelectValue placeholder="All Years" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Years</SelectItem>
+                  <SelectItem value="all">All Years</SelectItem>
                   {academicYears?.map((year: any) => (
                     <SelectItem key={year.id} value={year.id}>
                       {year.name}
@@ -237,7 +237,7 @@ export default function Analytics() {
                   <SelectValue placeholder="All Semesters" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Semesters</SelectItem>
+                  <SelectItem value="all">All Semesters</SelectItem>
                   {semesters?.map((semester: any) => (
                     <SelectItem key={semester.id} value={semester.id}>
                       {semester.name}

@@ -287,6 +287,64 @@ export type Database = {
           },
         ]
       }
+      class_teachers: {
+        Row: {
+          assigned_at: string
+          class_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          role: string
+          subject_id: string | null
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_at?: string
+          class_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role?: string
+          subject_id?: string | null
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_at?: string
+          class_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          role?: string
+          subject_id?: string | null
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_teachers_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_teachers_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "class_teachers_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           academic_year_id: string
@@ -605,7 +663,7 @@ export type Database = {
           date_of_birth: string
           enrollment_year: number
           first_name: string
-          gender: Database["public"]["Enums"]["gender_type"]
+          gender?: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_active?: boolean
           last_name: string
@@ -690,7 +748,7 @@ export type Database = {
         Insert: {
           created_at?: string
           first_name: string
-          gender: Database["public"]["Enums"]["gender_type"]
+          gender?: Database["public"]["Enums"]["gender_type"]
           hire_date: string
           id?: string
           is_active?: boolean
@@ -741,7 +799,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_teacher_to_class: { Args: { _class_id: string; _role?: string; _subject_id?: string; _teacher_id: string }; Returns: string }
+      create_student_with_user: { 
+        Args: { 
+          p_email: string; 
+          p_password: string; 
+          p_student_id_code: string; 
+          p_first_name: string; 
+          p_middle_name?: string; 
+          p_last_name: string; 
+          p_gender: string; 
+          p_date_of_birth: string; 
+          p_enrollment_year: number; 
+          p_boarding_status?: string; 
+          p_current_class_id?: string 
+        }; 
+        Returns: string 
+      }
+      get_class_teachers: { Args: { _class_id: string }; Returns: { class_id: string; grade_level: number; is_active: boolean; role: string; subject_code: string; subject_id: string; subject_name: string; teacher_code: string; teacher_id: string; teacher_name: string } }
       get_student_id: { Args: { _user_id: string }; Returns: string }
+      get_teacher_classes: { Args: { _teacher_id: string }; Returns: { class_id: string; class_name: string; grade_level: number; is_active: boolean; role: string; subject_code: string; subject_id: string; subject_name: string } }
       get_teacher_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -758,6 +835,7 @@ export type Database = {
         Args: { _class_id: string; _subject_id: string; _teacher_id: string }
         Returns: boolean
       }
+      remove_teacher_from_class: { Args: { _class_id: string; _role?: string; _subject_id?: string; _teacher_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "super_admin" | "teacher" | "student"
@@ -884,7 +962,7 @@ export type CompositeTypes<
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    ? DefaultSchema["CompositeTypes"][CompositeTypeName]
     : never
 
 export const Constants = {

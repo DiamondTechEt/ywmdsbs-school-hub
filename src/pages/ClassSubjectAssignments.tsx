@@ -216,7 +216,7 @@ export default function ClassSubjectAssignments() {
                 <SelectValue placeholder="Filter by class" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Classes</SelectItem>
+                <SelectItem value="all">All Classes</SelectItem>
                 {classes?.map((cls: any) => (
                   <SelectItem key={cls.id} value={cls.id}>
                     {cls.name} (Grade {cls.grade_level})

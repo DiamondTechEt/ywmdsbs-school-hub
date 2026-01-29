@@ -49,6 +49,8 @@ export default function Settings() {
 
   // User Roles Management
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
+  const [roleSearchQuery, setRoleSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState<'all' | 'super_admin' | 'teacher' | 'student'>('all');
   const [roleFormData, setRoleFormData] = useState({
     email: '',
     role: 'student' as 'super_admin' | 'teacher' | 'student',
@@ -90,17 +92,68 @@ export default function Settings() {
     enabled: !!selectedScaleId,
   });
 
-  const { data: userRoles } = useQuery({
-    queryKey: ['user-roles-list'],
+  const { data: userRoles, error: userRolesError, isLoading: userRolesLoading } = useQuery({
+    queryKey: ['user-roles-list', roleSearchQuery, roleFilter],
     queryFn: async () => {
-      const { data } = await supabase
+      console.log('Fetching user roles...');
+      
+      // First try a simple query without joins
+      let query = supabase
         .from('user_roles')
-        .select(`
-          *,
-          profile:profiles(email, full_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
-      return data || [];
+      
+      // Apply role filter
+      if (roleFilter !== 'all') {
+        query = query.eq('role', roleFilter);
+      }
+      
+      const { data: rolesData, error: rolesError } = await query;
+      
+      if (rolesError) {
+        console.log('User roles error:', rolesError);
+        throw rolesError;
+      }
+      
+      console.log('User roles data (no join):', rolesData);
+      
+      // If we have roles, try to get profile info separately
+      if (rolesData && rolesData.length > 0) {
+        const userIds = rolesData.map(role => role.user_id).filter(Boolean);
+        
+        if (userIds.length > 0) {
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id, email, full_name')
+            .in('id', userIds);
+          
+          if (profilesError) {
+            console.log('Profiles error:', profilesError);
+          } else {
+            console.log('Profiles data:', profilesData);
+            
+            // Merge the data
+            let mergedData = rolesData.map(role => ({
+              ...role,
+              profiles: profilesData?.find(profile => profile.id === role.user_id)
+            }));
+            
+            // Apply search filter
+            if (roleSearchQuery) {
+              mergedData = mergedData.filter(role => 
+                role.profiles?.full_name?.toLowerCase().includes(roleSearchQuery.toLowerCase()) ||
+                role.profiles?.email?.toLowerCase().includes(roleSearchQuery.toLowerCase()) ||
+                role.role?.toLowerCase().includes(roleSearchQuery.toLowerCase())
+              );
+            }
+            
+            console.log('Filtered merged data:', mergedData);
+            return mergedData;
+          }
+        }
+      }
+      
+      return rolesData || [];
     },
   });
 
@@ -460,7 +513,7 @@ export default function Settings() {
                               <SelectValue placeholder="Global (all years)" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="">Global</SelectItem>
+                              <SelectItem value="global">Global</SelectItem>
                               {academicYears?.map((year: any) => (
                                 <SelectItem key={year.id} value={year.id}>{year.name}</SelectItem>
                               ))}
@@ -644,16 +697,19 @@ export default function Settings() {
                   }}>
                     <DialogHeader>
                       <DialogTitle>Assign User Role</DialogTitle>
-                      <DialogDescription>Enter user email to assign or change their role</DialogDescription>
+                      <DialogDescription>
+                        Assign a role to a user by their email address
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                       <div className="space-y-2">
-                        <Label>User Email</Label>
+                        <Label htmlFor="email">Email</Label>
                         <Input
+                          id="email"
                           type="email"
+                          placeholder="user@example.com"
                           value={roleFormData.email}
                           onChange={(e) => setRoleFormData({ ...roleFormData, email: e.target.value })}
-                          placeholder="user@example.com"
                           required
                         />
                       </div>
@@ -661,7 +717,7 @@ export default function Settings() {
                         <Label>Role</Label>
                         <Select
                           value={roleFormData.role}
-                          onValueChange={(value: any) => setRoleFormData({ ...roleFormData, role: value })}
+                          onValueChange={(value: 'super_admin' | 'teacher' | 'student') => setRoleFormData({ ...roleFormData, role: value })}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -685,6 +741,37 @@ export default function Settings() {
               </Dialog>
             </CardHeader>
             <CardContent>
+              {/* Search and Filter Controls */}
+              <div className="flex gap-4 mb-6">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search by name, email, or role..."
+                    value={roleSearchQuery}
+                    onChange={(e) => setRoleSearchQuery(e.target.value)}
+                    className="max-w-sm"
+                  />
+                </div>
+                <div className="w-48">
+                  <Select value={roleFilter} onValueChange={(value: 'all' | 'super_admin' | 'teacher' | 'student') => setRoleFilter(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Filter by role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Roles</SelectItem>
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                      <SelectItem value="teacher">Teacher</SelectItem>
+                      <SelectItem value="student">Student</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Results count */}
+              <div className="text-sm text-muted-foreground mb-4">
+                {userRoles && `Showing ${userRoles.length} role${userRoles.length !== 1 ? 's' : ''}`}
+              </div>
+
+              {/* Roles Table */}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -696,36 +783,57 @@ export default function Settings() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userRoles?.map((roleEntry: any) => (
-                    <TableRow key={roleEntry.id}>
-                      <TableCell className="font-medium">
-                        {roleEntry.profile?.full_name || 'Unknown'}
-                      </TableCell>
-                      <TableCell>{roleEntry.profile?.email || '-'}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          roleEntry.role === 'super_admin' ? 'default' :
-                          roleEntry.role === 'teacher' ? 'secondary' : 'outline'
-                        }>
-                          {roleEntry.role.replace('_', ' ')}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(roleEntry.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm('Remove this role assignment?')) {
-                              deleteUserRole.mutate(roleEntry.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                  {userRolesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center">
+                        <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                        Loading roles...
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : userRolesError ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-red-500">
+                        Error loading roles: {userRolesError.message}
+                      </TableCell>
+                    </TableRow>
+                  ) : !userRoles || userRoles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        No roles found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    userRoles.map((roleEntry: any) => (
+                      <TableRow key={roleEntry.id}>
+                        <TableCell className="font-medium">
+                          {roleEntry.profiles?.full_name || 'Unknown'}
+                        </TableCell>
+                        <TableCell>{roleEntry.profiles?.email || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={
+                            roleEntry.role === 'super_admin' ? 'default' :
+                            roleEntry.role === 'teacher' ? 'secondary' : 'outline'
+                          }>
+                            {roleEntry.role.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(roleEntry.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('Remove this role assignment?')) {
+                                deleteUserRole.mutate(roleEntry.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

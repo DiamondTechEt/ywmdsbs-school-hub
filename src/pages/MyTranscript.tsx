@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, Download, FileText, School, GraduationCap, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { Document, Page, Text, View, StyleSheet, PDFDownloadLink, Font } from '@react-pdf/renderer';
+import { useStudentGradesWithSubjects } from '@/components/teacher/useStudentGradesWithSubjects';
 
 // Register fonts
 Font.register({
@@ -140,11 +141,11 @@ function TranscriptPDF({ data }: { data: TranscriptData }) {
 
   // Group grades by subject
   const subjectGrades = grades.reduce((acc: Record<string, any>, grade: any) => {
-    const subjectName = grade.subject?.name || 'Unknown';
+    const subjectName = grade.subject?.name || 'Unknown Subject';
     if (!acc[subjectName]) {
       acc[subjectName] = {
         name: subjectName,
-        code: grade.subject?.code || 'N/A',
+        code: grade.subject?.code || 'SUBJ001',
         credit: grade.subject?.credit || 1,
         grades: [],
       };
@@ -304,30 +305,8 @@ export default function MyTranscript() {
     enabled: !!user,
   });
 
-  const { data: grades, isLoading: gradesLoading } = useQuery({
-    queryKey: ['my-transcript-grades', studentData?.id, selectedYear],
-    queryFn: async () => {
-      let query = supabase
-        .from('grades')
-        .select(`
-          *,
-          subject:subjects(*),
-          assessment:assessments(*),
-          semester:semesters(*, academic_year:academic_years(*)),
-          academic_year:academic_years(*)
-        `)
-        .eq('student_id', studentData!.id)
-        .eq('is_published', true);
-
-      if (selectedYear !== 'all') {
-        query = query.eq('academic_year_id', selectedYear);
-      }
-
-      const { data } = await query.order('created_at', { ascending: false });
-      return data || [];
-    },
-    enabled: !!studentData,
-  });
+  // Use the new hook to get grades with subject information
+  const { data: grades, isLoading: gradesLoading } = useStudentGradesWithSubjects(studentData?.id, selectedYear);
 
   const { data: academicYears } = useQuery({
     queryKey: ['academic-years'],
@@ -353,13 +332,13 @@ export default function MyTranscript() {
     const subjectAverages: Record<string, { total: number; count: number; credit: number }> = {};
 
     grades.forEach((grade: any) => {
-      const subjectId = grade.subject_id;
+      const subjectName = grade.subject?.name || 'Unknown Subject';
       const credit = grade.subject?.credit || 1;
-      if (!subjectAverages[subjectId]) {
-        subjectAverages[subjectId] = { total: 0, count: 0, credit };
+      if (!subjectAverages[subjectName]) {
+        subjectAverages[subjectName] = { total: 0, count: 0, credit };
       }
-      subjectAverages[subjectId].total += grade.percentage || 0;
-      subjectAverages[subjectId].count += 1;
+      subjectAverages[subjectName].total += grade.percentage || 0;
+      subjectAverages[subjectName].count += 1;
       totalPercentage += grade.percentage || 0;
     });
 

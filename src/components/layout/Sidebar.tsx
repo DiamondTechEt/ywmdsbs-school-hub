@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   LayoutDashboard, 
   Users, 
@@ -11,13 +12,57 @@ import {
   Calendar,
   FileSpreadsheet,
   LogOut,
-  School
+  School,
+  UserCheck,
+  Eye,
+  Award,
+  User,
+  Menu,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useState, useEffect } from 'react';
 
 export function Sidebar() {
   const { role, signOut, user } = useAuth();
+  const [userName, setUserName] = useState<string>('');
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Emit sidebar width changes to parent
+  useEffect(() => {
+    const width = isCollapsed ? 80 : 256; // w-20 = 80px, w-64 = 256px
+    window.dispatchEvent(new CustomEvent('sidebarStateChange', { detail: { width } }));
+  }, [isCollapsed]);
+
+  // Fetch user name from user_names table
+  useEffect(() => {
+    if (user) {
+      fetchUserName();
+    }
+  }, [user]);
+
+  const fetchUserName = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('user_names')
+        .select('display_name, full_name')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching user name:', error);
+        // Fallback to auth user metadata if available
+        setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User');
+      } else {
+        setUserName(data?.display_name || data?.full_name || 'User');
+      }
+    } catch (error) {
+      console.error('Error fetching user name:', error);
+      setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User');
+    }
+  };
 
   const navItems = {
     super_admin: [
@@ -28,75 +73,166 @@ export function Sidebar() {
       { to: '/subjects', icon: BookOpen, label: 'Subjects' },
       { to: '/enrollments', icon: Users, label: 'Enrollments' },
       { to: '/assignments', icon: BookOpen, label: 'Assignments' },
+      { to: '/class-teacher-assignments', icon: UserCheck, label: 'Class Teachers' },
       { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
       { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
       { to: '/analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/academic-years', icon: Calendar, label: 'Academic Years' },
       { to: '/settings', icon: Settings, label: 'Settings' },
+      { to: '/profile-settings', icon: User, label: 'Profile Settings' },
     ],
     teacher: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/my-classes', icon: School, label: 'My Classes' },
-      { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
-      { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
+      { to: '/teacher-dashboard', icon: School, label: 'My Classes' },
+      { to: '/teacher-students', icon: Users, label: 'Student Management' },
+      { to: '/student-assessments', icon: Eye, label: 'Student Assessments' },
+      { to: '/teacher-assessments', icon: BookOpen, label: 'Assessments' },
+      { to: '/teacher-grades', icon: Award, label: 'Grades' },
+      { to: '/teacher-analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/upload-grades', icon: FileSpreadsheet, label: 'Upload Grades' },
-      { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+      { to: '/profile-settings', icon: User, label: 'Profile Settings' },
     ],
     student: [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/my-grades', icon: FileSpreadsheet, label: 'My Grades' },
+      { to: '/my-grades', icon: FileSpreadsheet, label: 'My Grades' }, 
       { to: '/my-transcript', icon: ClipboardList, label: 'Transcript' },
       { to: '/my-performance', icon: BarChart3, label: 'Performance' },
+      { to: '/profile-settings', icon: User, label: 'Profile Settings' },
     ],
   };
 
   const items = role ? navItems[role] : [];
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-border bg-sidebar">
-      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-        <School className="h-8 w-8 text-sidebar-primary" />
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold text-sidebar-foreground">YWMDSBS</span>
-          <span className="text-xs text-sidebar-foreground/60">School Management</span>
-        </div>
-      </div>
+    <>
+      {/* Mobile overlay */}
+      {isMobileOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
       
-      <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-        {items.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-              )
-            }
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
+      {/* Mobile menu button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="fixed top-4 left-4 z-50 lg:hidden"
+        onClick={() => setIsMobileOpen(true)}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
 
-      <div className="border-t border-sidebar-border p-4">
-        <div className="mb-3 text-xs text-sidebar-foreground/60">
-          <p className="truncate font-medium text-sidebar-foreground">{user?.email}</p>
-          <p className="capitalize">{role?.replace('_', ' ')}</p>
+      {/* Sidebar */}
+      <aside className={cn(
+        "fixed top-0 left-0 z-50 h-screen bg-white border-r border-gray-200 transition-all duration-300 ease-in-out",
+        isCollapsed ? "w-20" : "w-64",
+        isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h1 className={cn(
+              "font-bold text-gray-900 transition-all duration-200",
+              isCollapsed ? "text-lg" : "text-xl"
+            )}>
+              {isCollapsed ? "SH" : "School Hub"}
+            </h1>
+            <div className="flex items-center gap-2">
+              {/* Desktop collapse button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hidden lg:flex"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+              {/* Mobile close button */}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="lg:hidden"
+                onClick={() => setIsMobileOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          
+          {/* User info */}
+          <div className={cn(
+            "mt-4 transition-all duration-200",
+            isCollapsed ? "text-center" : ""
+          )}>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                <User className="h-4 w-4 text-gray-600" />
+              </div>
+              {!isCollapsed && (
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {userName || 'Loading...'}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {role || 'User'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full justify-start gap-2"
-          onClick={signOut}
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
-        </Button>
-      </div>
-    </aside>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-4 overflow-y-auto">
+          <ul className="space-y-2">
+            {items.map((item) => (
+              <li key={item.to}>
+                <NavLink
+                  to={item.to}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200",
+                      isActive
+                        ? "bg-gray-900 text-white"
+                        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+                      "focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    )
+                  }
+                  onClick={() => {
+                    if (window.innerWidth < 1024) {
+                      setIsMobileOpen(false);
+                    }
+                  }}
+                >
+                  <item.icon className="h-5 w-5 flex-shrink-0" />
+                  {!isCollapsed && (
+                    <span className="truncate">{item.label}</span>
+                  )}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-200">
+          <Button
+            variant="ghost"
+            className={cn(
+              "w-full justify-start text-gray-700 hover:bg-gray-100 hover:text-gray-900",
+              isCollapsed && "justify-center"
+            )}
+            onClick={() => {
+              signOut();
+              setIsMobileOpen(false);
+            }}
+          >
+            <LogOut className="h-5 w-5" />
+            {!isCollapsed && <span>Sign Out</span>}
+          </Button>
+        </div>
+      </aside>
+    </>
   );
 }

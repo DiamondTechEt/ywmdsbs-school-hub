@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Search, Edit, Trash2, Users, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, Loader2, Eye, Calendar, BookOpen, Award } from 'lucide-react';
 import { z } from 'zod';
 
 const teacherSchema = z.object({
@@ -29,6 +29,8 @@ export default function Teachers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
+  const [detailsTeacher, setDetailsTeacher] = useState<any>(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -56,6 +58,87 @@ export default function Teachers() {
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: classes } = useQuery({
+    queryKey: ['classes'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('classes')
+        .select('*')
+        .order('grade_level')
+        .order('name');
+      return data || [];
+    },
+  });
+
+  // Query to fetch teacher details and activities
+  const { data: teacherDetails, isLoading: detailsLoading } = useQuery({
+    queryKey: ['teacher-details', detailsTeacher?.id],
+    queryFn: async () => {
+      if (!detailsTeacher?.id) return null;
+
+      const [
+        assignmentsResult,
+        assessmentsResult,
+        gradesResult,
+        profileResult
+      ] = await Promise.all([
+        // Get class assignments
+        supabase
+          .from('class_subject_assignments')
+          .select(`
+            *,
+            class:classes(name, grade_level),
+            subject:subjects(name, code)
+          `)
+          .eq('teacher_id', detailsTeacher.id)
+          .eq('is_active', true),
+        
+        // Get assessments created by this teacher
+        supabase
+          .from('assessments')
+          .select(`
+            *,
+            class_subject_assignment:class_subject_assignments(
+              class:classes(name),
+              subject:subjects(name)
+            )
+          `)
+          .eq('created_by_teacher_id', detailsTeacher.id)
+          .order('assessment_date', { ascending: false })
+          .limit(10),
+        
+        // Get recent grades given by this teacher
+        supabase
+          .from('grades')
+          .select(`
+            *,
+            student:students(first_name, last_name, student_id_code),
+            assessment:assessments(title, assessment_date),
+            class:classes(name),
+            subject:subjects(name)
+          `)
+          .eq('teacher_id', detailsTeacher.id)
+          .order('created_at', { ascending: false })
+          .limit(10),
+        
+        // Get teacher profile
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', detailsTeacher.user_id)
+          .single()
+      ]);
+
+      return {
+        assignments: assignmentsResult.data || [],
+        assessments: assessmentsResult.data || [],
+        grades: gradesResult.data || [],
+        profile: profileResult.data
+      };
+    },
+    enabled: !!detailsTeacher?.id
   });
 
   const createTeacher = useMutation({
@@ -196,6 +279,11 @@ export default function Teachers() {
       hire_date: teacher.hire_date,
     });
     setIsDialogOpen(true);
+  };
+
+  const openDetailsDialog = (teacher: any) => {
+    setDetailsTeacher(teacher);
+    setIsDetailsDialogOpen(true);
   };
 
   return (
@@ -394,7 +482,14 @@ export default function Teachers() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openDetailsDialog(teacher)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
@@ -431,6 +526,186 @@ export default function Teachers() {
           )}
         </CardContent>
       </Card>
+
+      {/* Teacher Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={(open) => {
+        setIsDetailsDialogOpen(open);
+        if (!open) {
+          setDetailsTeacher(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              Teacher Details
+            </DialogTitle>
+            <DialogDescription>
+              Comprehensive view of teacher information and activities
+            </DialogDescription>
+          </DialogHeader>
+          
+          {detailsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : teacherDetails && detailsTeacher ? (
+            <div className="space-y-6">
+              {/* Basic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Basic Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Name</Label>
+                    <p className="text-lg">
+                      {detailsTeacher.first_name} {detailsTeacher.middle_name} {detailsTeacher.last_name}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Teacher Code</Label>
+                    <p className="text-lg font-mono">{detailsTeacher.teacher_code}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                    <p>{teacherDetails.profile?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
+                    <p className="capitalize">{detailsTeacher.gender}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Hire Date</Label>
+                    <p>{new Date(detailsTeacher.hire_date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                    <Badge variant={detailsTeacher.is_active ? 'default' : 'secondary'}>
+                      {detailsTeacher.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Class Assignments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookOpen className="h-5 w-5" />
+                    Class Assignments
+                  </CardTitle>
+                  <CardDescription>
+                    Current class and subject assignments
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {teacherDetails.assignments.length > 0 ? (
+                    <div className="space-y-2">
+                      {teacherDetails.assignments.map((assignment: any) => (
+                        <div key={assignment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium">{assignment.class?.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Grade {assignment.class?.grade_level} • {assignment.subject?.name} ({assignment.subject?.code})
+                            </p>
+                          </div>
+                          <Badge variant="outline">Active</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No class assignments found</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Assessments */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="h-5 w-5" />
+                    Recent Assessments
+                  </CardTitle>
+                  <CardDescription>
+                    Latest 10 assessments created by this teacher
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {teacherDetails.assessments.length > 0 ? (
+                    <div className="space-y-2">
+                      {teacherDetails.assessments.map((assessment: any) => (
+                        <div key={assessment.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium">{assessment.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {assessment.class_subject_assignment?.class?.name} • {assessment.class_subject_assignment?.subject?.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(assessment.assessment_date).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Badge variant={assessment.is_published ? 'default' : 'secondary'}>
+                            {assessment.is_published ? 'Published' : 'Draft'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No assessments found</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Grades */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Recent Grades Given
+                  </CardTitle>
+                  <CardDescription>
+                    Latest 10 grades assigned by this teacher
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {teacherDetails.grades.length > 0 ? (
+                    <div className="space-y-2">
+                      {teacherDetails.grades.map((grade: any) => (
+                        <div key={grade.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium">
+                              {grade.student?.first_name} {grade.student?.last_name} ({grade.student?.student_id_code})
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {grade.assessment?.title} • {grade.score}/{grade.assessment?.max_score} points
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {grade.class?.name} • {grade.subject?.name}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">{grade.percentage}%</p>
+                            <Badge variant={grade.is_published ? 'default' : 'secondary'}>
+                              {grade.is_published ? 'Published' : 'Draft'}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-center py-4">No grades found</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No teacher details available</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

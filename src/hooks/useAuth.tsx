@@ -22,14 +22,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserRole = async (userId: string) => {
-    const { data } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
-      .single();
-    
-    if (data) {
-      setRole(data.role as AppRole);
+    try {
+      console.log('Fetching role for user:', userId);
+      
+      // Method 1: Try direct query first
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+      
+      if (data) {
+        console.log('Role found via direct query:', data.role);
+        setRole(data.role as AppRole);
+        return;
+      }
+      
+      if (error) {
+        console.log('Direct query failed, trying alternative methods:', error.message);
+        
+        // Method 2: Try without .single()
+        const { data: allRoles, error: error2 } = await supabase
+          .from('user_roles')
+          .select('role, user_id')
+          .eq('user_id', userId);
+        
+        if (allRoles && allRoles.length > 0) {
+          console.log('Role found via alternative query:', allRoles[0].role);
+          setRole(allRoles[0].role as AppRole);
+          return;
+        }
+        
+        console.log('All methods failed, errors:', { error, error2 });
+      }
+    } catch (error) {
+      console.error('Error in fetchUserRole:', error);
     }
   };
 

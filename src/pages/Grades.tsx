@@ -381,7 +381,7 @@ export default function Grades() {
                   <SelectValue placeholder="Filter by assessment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Assessments</SelectItem>
+                  <SelectItem value="all">All Assessments</SelectItem>
                   {assessments?.map((assessment: any) => (
                     <SelectItem key={assessment.id} value={assessment.id}>
                       {assessment.title} - {assessment.class_subject_assignment?.class?.name}

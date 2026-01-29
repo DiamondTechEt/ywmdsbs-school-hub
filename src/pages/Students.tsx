@@ -81,49 +81,23 @@ export default function Students() {
 
   const createStudent = useMutation({
     mutationFn: async (data: typeof formData) => {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: `${data.first_name} ${data.last_name}`,
-          },
-        },
-      });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create user');
-
-      // Create profile
-      await supabase.from('profiles').insert({
-        id: authData.user.id,
-        email: data.email,
-        full_name: `${data.first_name} ${data.last_name}`,
-      });
-
-      // Assign student role
-      await supabase.from('user_roles').insert({
-        user_id: authData.user.id,
-        role: 'student',
-      });
-
-      // Create student record
-      const { error: studentError } = await supabase.from('students').insert({
-        user_id: authData.user.id,
-        student_id_code: data.student_id_code,
-        first_name: data.first_name,
-        middle_name: data.middle_name || null,
-        last_name: data.last_name,
-        gender: data.gender,
-        date_of_birth: data.date_of_birth,
-        enrollment_year: data.enrollment_year,
-        boarding_status: data.boarding_status,
-        current_class_id: data.current_class_id || null,
+      // Use the RPC function to create student with proper RLS handling
+      const { data: studentData, error: studentError } = await supabase.rpc('create_student_with_user', {
+        p_email: data.email,
+        p_password: data.password,
+        p_student_id_code: data.student_id_code,
+        p_first_name: data.first_name,
+        p_middle_name: data.middle_name || null,
+        p_last_name: data.last_name,
+        p_gender: data.gender,
+        p_date_of_birth: data.date_of_birth,
+        p_enrollment_year: data.enrollment_year,
+        p_boarding_status: data.boarding_status,
+        p_current_class_id: data.current_class_id || null
       });
 
       if (studentError) throw studentError;
+      return studentData;
     },
     onSuccess: () => {
       toast.success('Student created successfully');

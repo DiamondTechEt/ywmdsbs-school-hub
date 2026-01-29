@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { BookOpen, TrendingUp, Award, FileText, GraduationCap } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { useStudentGradesWithSubjects } from '@/components/teacher/useStudentGradesWithSubjects';
+import { useMemo } from 'react';
 
 export function StudentDashboard() {
   const { user } = useAuth();
@@ -24,66 +26,40 @@ export function StudentDashboard() {
 
       if (!student) return null;
 
-      const { data: grades } = await supabase
-        .from('grades')
-        .select(`
-          *,
-          subject:subjects(*),
-          assessment:assessments(*)
-        `)
-        .eq('student_id', student.id)
-        .eq('is_published', true);
-
-      const { data: enrollment } = await supabase
-        .from('enrollments')
-        .select('*, class:classes(*), academic_year:academic_years(*)')
-        .eq('student_id', student.id)
-        .eq('is_active', true)
-        .single();
-
       return {
         student,
-        grades: grades || [],
-        enrollment,
+        enrollment: null, // We'll get this separately if needed
       };
     },
     enabled: !!user,
   });
 
+  // Use the working hook to get grades with subject information
+  const { data: grades } = useStudentGradesWithSubjects(studentData?.student?.id);
+
   // Calculate statistics
   const calculateStats = () => {
-    const grades = studentData?.grades || [];
-    if (grades.length === 0) {
+    if (!grades || grades.length === 0) {
       return { average: 0, gpa: 0, topSubject: 'N/A', subjectCount: 0 };
     }
 
     const totalPercentage = grades.reduce((sum: number, g: any) => sum + (g.percentage || 0), 0);
     const average = totalPercentage / grades.length;
-
-    // Group by subject and calculate averages
-    const subjectAverages: Record<string, { total: number; count: number; name: string }> = {};
-    grades.forEach((grade: any) => {
-      const subjectId = grade.subject_id;
-      const subjectName = grade.subject?.name || 'Unknown';
-      if (!subjectAverages[subjectId]) {
-        subjectAverages[subjectId] = { total: 0, count: 0, name: subjectName };
-      }
-      subjectAverages[subjectId].total += grade.percentage || 0;
-      subjectAverages[subjectId].count += 1;
-    });
-
-    let topSubject = 'N/A';
-    let topAverage = 0;
-    Object.values(subjectAverages).forEach((subject) => {
-      const avg = subject.total / subject.count;
-      if (avg > topAverage) {
-        topAverage = avg;
-        topSubject = subject.name;
-      }
-    });
-
-    // Simple GPA calculation (4.0 scale)
     const gpa = (average / 100) * 4;
+
+    // Group by subject to find top performing subject
+    const subjectAverages: Record<string, { total: number; count: number }> = {};
+    grades.forEach((grade: any) => {
+      const subjectName = grade.subject?.name || 'Unknown Subject';
+      if (!subjectAverages[subjectName]) {
+        subjectAverages[subjectName] = { total: 0, count: 0 };
+      }
+      subjectAverages[subjectName].total += grade.percentage || 0;
+      subjectAverages[subjectName].count += 1;
+    });
+
+    const topSubject = Object.entries(subjectAverages)
+      .sort(([, a], [, b]) => b.total - a.total)[0]?.[0] || 'N/A';
 
     return {
       average: Math.round(average * 10) / 10,
@@ -96,7 +72,7 @@ export function StudentDashboard() {
   const stats = calculateStats();
 
   // Group grades by subject for chart
-  const subjectPerformance = studentData?.grades?.reduce((acc: Record<string, { total: number; count: number; name: string }>, grade: any) => {
+  const subjectPerformance = grades?.reduce((acc: Record<string, { total: number; count: number; name: string }>, grade: any) => {
     const subjectName = grade.subject?.name || 'Unknown';
     if (!acc[subjectName]) {
       acc[subjectName] = { total: 0, count: 0, name: subjectName };
@@ -111,14 +87,42 @@ export function StudentDashboard() {
     average: Math.round((subject.total / subject.count) * 10) / 10,
   }));
 
-  // Mock trend data - in production, this would come from historical grades
-  const trendData = [
-    { month: 'Sep', score: 75 },
-    { month: 'Oct', score: 78 },
-    { month: 'Nov', score: 82 },
-    { month: 'Dec', score: 80 },
-    { month: 'Jan', score: 85 },
-  ];
+  // Generate trend data from real grades
+  const trendData = useMemo(() => {
+    if (!grades || grades.length === 0) {
+      return [];
+    }
+
+    const gradesArray = grades as any[];
+    const gradesByDate: Record<string, number[]> = {};
+    
+    // Group grades by date
+    gradesArray.forEach((grade: any) => {
+      const date = new Date(grade.assessment?.assessment_date || grade.created_at).toLocaleDateString();
+      if (!gradesByDate[date]) {
+        gradesByDate[date] = [];
+      }
+      gradesByDate[date].push(grade.percentage || 0);
+    });
+
+    // Calculate daily averages and sort by date
+    const trendData = Object.entries(gradesByDate)
+      .map(([date, percentages]: [string, number[]]) => {
+        const average = percentages.reduce((sum, score) => sum + score, 0) / percentages.length;
+        return {
+          date,
+          score: Math.round(average * 10) / 10
+        };
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(-6) // Get last 6 data points
+      .map((item) => ({
+        month: new Date(item.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        score: item.score
+      }));
+
+    return trendData;
+  }, [grades]);
 
   return (
     <div className="p-8">
@@ -259,9 +263,9 @@ export function StudentDashboard() {
           <CardDescription>Your latest published grades</CardDescription>
         </CardHeader>
         <CardContent>
-          {studentData?.grades && studentData.grades.length > 0 ? (
+          {grades && grades.length > 0 ? (
             <div className="space-y-4">
-              {studentData.grades.slice(0, 5).map((grade: any) => (
+              {grades.slice(0, 5).map((grade: any) => (
                 <div
                   key={grade.id}
                   className="flex items-center justify-between rounded-lg border border-border p-4"

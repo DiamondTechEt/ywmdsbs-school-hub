@@ -224,7 +224,7 @@ export default function Subjects() {
                         <SelectValue placeholder="All grades" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All Grades</SelectItem>
+                        <SelectItem value="all">All Grades</SelectItem>
                         {[9, 10, 11, 12].map((grade) => (
                           <SelectItem key={grade} value={grade.toString()}>
                             Grade {grade}

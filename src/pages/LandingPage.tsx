@@ -168,7 +168,7 @@ export function LandingPage() {
               { label: 'Excellence', value: '100%', sub: 'Pass Rate', icon: Award },
               { label: 'STEM focus', value: '4.0', sub: 'Average GPA', icon: Zap },
               { label: 'Selective', value: 'Top 5%', sub: 'Student Intake', icon: Users },
-              { label: 'Memorial', value: 'Est. 2012', sub: 'Legacy', icon: History },
+              { label: 'Memorial', value: 'Est. 2018', sub: 'Legacy', icon: History },
             ].map((stat, i) => (
               <div key={i} className="glass-card p-6 md:p-8 rounded-3xl text-center hover:translate-y-[-8px] transition-all duration-300">
                 <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/10">

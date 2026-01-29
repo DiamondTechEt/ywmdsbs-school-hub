@@ -26,6 +26,8 @@ export function Sidebar() {
       { to: '/teachers', icon: Users, label: 'Teachers' },
       { to: '/classes', icon: School, label: 'Classes' },
       { to: '/subjects', icon: BookOpen, label: 'Subjects' },
+      { to: '/enrollments', icon: Users, label: 'Enrollments' },
+      { to: '/assignments', icon: BookOpen, label: 'Assignments' },
       { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
       { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
       { to: '/analytics', icon: BarChart3, label: 'Analytics' },

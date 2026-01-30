@@ -14,6 +14,7 @@ import Teachers from "./pages/Teachers";
 import Classes from "./pages/Classes";
 import Subjects from "./pages/Subjects";
 import AcademicYears from "./pages/AcademicYears";
+import Semesters from "./pages/Semesters";
 import Assessments from "./pages/Assessments";
 import Grades from "./pages/Grades";
 import Analytics from "./pages/Analytics";
@@ -21,6 +22,7 @@ import Settings from "./pages/Settings";
 import Enrollments from "./pages/Enrollments";
 import ClassSubjectAssignments from "./pages/ClassSubjectAssignments";
 import ClassTeacherAdmin from "./pages/admin/ClassTeacherAdmin";
+import AuditLogs from "./pages/AuditLogs";
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
 import MyClasses from "./pages/MyClasses";
 import TeacherStudents from "./pages/TeacherStudents";
@@ -33,6 +35,7 @@ import MyGrades from "./pages/MyGrades";
 import MyTranscript from "./pages/MyTranscript";
 import MyPerformance from "./pages/MyPerformance";
 import ProfileSettings from "./pages/ProfileSettings";
+import ParentPortal from "./pages/ParentPortal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -90,6 +93,22 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['super_admin']}>
                     <AcademicYears />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/semesters" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <Semesters />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/audit-logs" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <AuditLogs />
                   </ProtectedRoute>
                 } 
               />
@@ -228,8 +247,16 @@ const App = () => (
               <Route 
                 path="/profile-settings" 
                 element={
-                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
+                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin', 'parent']}>
                     <ProfileSettings />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/parent-portal" 
+                element={
+                  <ProtectedRoute allowedRoles={['parent']}>
+                    <ParentPortal />
                   </ProtectedRoute>
                 } 
               />

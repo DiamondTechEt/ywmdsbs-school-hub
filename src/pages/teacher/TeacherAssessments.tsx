@@ -39,7 +39,6 @@ interface TeacherClass {
 interface Assessment {
   id: string;
   title: string;
-  description?: string;
   max_score: number;
   weight: number;
   assessment_date: string;
@@ -132,7 +131,8 @@ export function TeacherAssessments() {
           *,
           assessment_types(name),
           class_subject_assignments(
-            classes(name),
+            class_id,
+            classes(id, name),
             subjects(name)
           )
         `)
@@ -144,10 +144,11 @@ export function TeacherAssessments() {
       const assessmentsWithStats = await Promise.all(
         (assessmentsData || []).map(async (assessment) => {
           // Get total students in the class
+          const classId = assessment.class_subject_assignments?.class_id;
           const { count: totalStudents } = await supabase
             .from('enrollments')
             .select('*', { count: 'exact', head: true })
-            .eq('class_id', assessment.class_subject_assignments?.classes?.id)
+            .eq('class_id', classId || '')
             .eq('is_active', true);
 
           // Get graded students
@@ -169,7 +170,6 @@ export function TeacherAssessments() {
           return {
             id: assessment.id,
             title: assessment.title,
-            description: assessment.description,
             max_score: assessment.max_score,
             weight: assessment.weight,
             assessment_date: assessment.assessment_date,
@@ -388,11 +388,6 @@ export function TeacherAssessments() {
                       <TableCell>
                         <div>
                           <div className="font-medium">{assessment.title}</div>
-                          {assessment.description && (
-                            <div className="text-sm text-muted-foreground truncate max-w-xs">
-                              {assessment.description}
-                            </div>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -540,13 +535,6 @@ export function TeacherAssessments() {
                   <p className="font-semibold">{selectedAssessment.weight}%</p>
                 </div>
               </div>
-              
-              {selectedAssessment.description && (
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Description</Label>
-                  <p className="mt-1">{selectedAssessment.description}</p>
-                </div>
-              )}
               
               <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                 <div className="text-center">

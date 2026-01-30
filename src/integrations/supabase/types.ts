@@ -242,51 +242,6 @@ export type Database = {
           },
         ]
       }
-      classes: {
-        Row: {
-          academic_year_id: string
-          created_at: string
-          grade_level: number
-          homeroom_teacher_id: string | null
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          academic_year_id: string
-          created_at?: string
-          grade_level: number
-          homeroom_teacher_id?: string | null
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          academic_year_id?: string
-          created_at?: string
-          grade_level?: number
-          homeroom_teacher_id?: string | null
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "classes_academic_year_id_fkey"
-            columns: ["academic_year_id"]
-            isOneToOne: false
-            referencedRelation: "academic_years"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "classes_homeroom_teacher_id_fkey"
-            columns: ["homeroom_teacher_id"]
-            isOneToOne: false
-            referencedRelation: "teachers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       class_teachers: {
         Row: {
           assigned_at: string
@@ -330,17 +285,62 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "class_teachers_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "class_teachers_teacher_id_fkey"
             columns: ["teacher_id"]
             isOneToOne: false
             referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      classes: {
+        Row: {
+          academic_year_id: string
+          created_at: string
+          grade_level: number
+          homeroom_teacher_id: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          academic_year_id: string
+          created_at?: string
+          grade_level: number
+          homeroom_teacher_id?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          academic_year_id?: string
+          created_at?: string
+          grade_level?: number
+          homeroom_teacher_id?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "class_teachers_subject_id_fkey"
-            columns: ["subject_id"]
+            foreignKeyName: "classes_academic_year_id_fkey"
+            columns: ["academic_year_id"]
             isOneToOne: false
-            referencedRelation: "subjects"
+            referencedRelation: "academic_years"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "classes_homeroom_teacher_id_fkey"
+            columns: ["homeroom_teacher_id"]
+            isOneToOne: false
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
         ]
@@ -571,6 +571,96 @@ export type Database = {
           },
         ]
       }
+      parent_students: {
+        Row: {
+          can_view_attendance: boolean | null
+          can_view_grades: boolean | null
+          created_at: string
+          id: string
+          is_primary: boolean | null
+          parent_id: string
+          relationship: string
+          student_id: string
+        }
+        Insert: {
+          can_view_attendance?: boolean | null
+          can_view_grades?: boolean | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          parent_id: string
+          relationship?: string
+          student_id: string
+        }
+        Update: {
+          can_view_attendance?: boolean | null
+          can_view_grades?: boolean | null
+          created_at?: string
+          id?: string
+          is_primary?: boolean | null
+          parent_id?: string
+          relationship?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parent_students_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parent_students_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parents: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          first_name: string
+          id: string
+          is_active: boolean | null
+          last_name: string
+          middle_name: string | null
+          phone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          first_name: string
+          id?: string
+          is_active?: boolean | null
+          last_name: string
+          middle_name?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          first_name?: string
+          id?: string
+          is_active?: boolean | null
+          last_name?: string
+          middle_name?: string | null
+          phone?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -641,6 +731,7 @@ export type Database = {
       }
       students: {
         Row: {
+          avatar_url: string | null
           boarding_status: Database["public"]["Enums"]["boarding_status"]
           created_at: string
           current_class_id: string | null
@@ -657,13 +748,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           boarding_status?: Database["public"]["Enums"]["boarding_status"]
           created_at?: string
           current_class_id?: string | null
           date_of_birth: string
           enrollment_year: number
           first_name: string
-          gender?: Database["public"]["Enums"]["gender_type"]
+          gender: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_active?: boolean
           last_name: string
@@ -673,6 +765,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           boarding_status?: Database["public"]["Enums"]["boarding_status"]
           created_at?: string
           current_class_id?: string | null
@@ -733,6 +826,7 @@ export type Database = {
       }
       teachers: {
         Row: {
+          avatar_url: string | null
           created_at: string
           first_name: string
           gender: Database["public"]["Enums"]["gender_type"]
@@ -741,24 +835,28 @@ export type Database = {
           is_active: boolean
           last_name: string
           middle_name: string | null
+          phone: string | null
           teacher_code: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           first_name: string
-          gender?: Database["public"]["Enums"]["gender_type"]
+          gender: Database["public"]["Enums"]["gender_type"]
           hire_date: string
           id?: string
           is_active?: boolean
           last_name: string
           middle_name?: string | null
+          phone?: string | null
           teacher_code: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           first_name?: string
           gender?: Database["public"]["Enums"]["gender_type"]
@@ -767,8 +865,42 @@ export type Database = {
           is_active?: boolean
           last_name?: string
           middle_name?: string | null
+          phone?: string | null
           teacher_code?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_names: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          first_name: string
+          full_name: string | null
+          last_name: string
+          middle_name: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          first_name: string
+          full_name?: string | null
+          last_name: string
+          middle_name?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          first_name?: string
+          full_name?: string | null
+          last_name?: string
+          middle_name?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -799,27 +931,54 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      assign_teacher_to_class: { Args: { _class_id: string; _role?: string; _subject_id?: string; _teacher_id: string }; Returns: string }
-      create_student_with_user: { 
-        Args: { 
-          p_email: string; 
-          p_password: string; 
-          p_student_id_code: string; 
-          p_first_name: string; 
-          p_middle_name?: string; 
-          p_last_name: string; 
-          p_gender: string; 
-          p_date_of_birth: string; 
-          p_enrollment_year: number; 
-          p_boarding_status?: string; 
-          p_current_class_id?: string 
-        }; 
-        Returns: string 
+      assign_teacher_to_class: {
+        Args: { _class_id: string; _role?: string; _teacher_id: string }
+        Returns: string
       }
-      get_class_teachers: { Args: { _class_id: string }; Returns: { class_id: string; grade_level: number; is_active: boolean; role: string; subject_code: string; subject_id: string; subject_name: string; teacher_code: string; teacher_id: string; teacher_name: string } }
+      create_student_with_user: {
+        Args: {
+          p_boarding_status?: string
+          p_current_class_id?: string
+          p_date_of_birth: string
+          p_email: string
+          p_enrollment_year: number
+          p_first_name: string
+          p_gender: string
+          p_last_name: string
+          p_middle_name?: string
+          p_password: string
+          p_student_id_code: string
+        }
+        Returns: string
+      }
+      get_class_teachers: {
+        Args: { _class_id: string }
+        Returns: {
+          is_active: boolean
+          role: string
+          teacher_code: string
+          teacher_id: string
+          teacher_name: string
+        }[]
+      }
       get_student_id: { Args: { _user_id: string }; Returns: string }
-      get_teacher_classes: { Args: { _teacher_id: string }; Returns: { class_id: string; class_name: string; grade_level: number; is_active: boolean; role: string; subject_code: string; subject_id: string; subject_name: string } }
+      get_teacher_classes: {
+        Args: { _teacher_id: string }
+        Returns: {
+          class_id: string
+          class_name: string
+          grade_level: number
+          is_active: boolean
+          role: string
+        }[]
+      }
       get_teacher_id: { Args: { _user_id: string }; Returns: string }
+      get_user_role: {
+        Args: { user_id_to_check?: string }
+        Returns: {
+          role: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -827,6 +986,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_current_user_admin: { Args: never; Returns: boolean }
+      is_current_user_super_admin: { Args: never; Returns: boolean }
       is_homeroom_teacher: {
         Args: { _class_id: string; _teacher_id: string }
         Returns: boolean
@@ -835,10 +996,22 @@ export type Database = {
         Args: { _class_id: string; _subject_id: string; _teacher_id: string }
         Returns: boolean
       }
-      remove_teacher_from_class: { Args: { _class_id: string; _role?: string; _subject_id?: string; _teacher_id: string }; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      populate_user_names: {
+        Args: never
+        Returns: {
+          students_synced: number
+          teachers_synced: number
+          total_synced: number
+        }[]
+      }
+      remove_teacher_from_class: {
+        Args: { _class_id: string; _role?: string; _teacher_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "super_admin" | "teacher" | "student"
+      app_role: "super_admin" | "teacher" | "student" | "parent"
       boarding_status: "boarding" | "day"
       gender_type: "male" | "female" | "other"
     }
@@ -962,13 +1135,13 @@ export type CompositeTypes<
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][CompositeTypeName]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "teacher", "student"],
+      app_role: ["super_admin", "teacher", "student", "parent"],
       boarding_status: ["boarding", "day"],
       gender_type: ["male", "female", "other"],
     },

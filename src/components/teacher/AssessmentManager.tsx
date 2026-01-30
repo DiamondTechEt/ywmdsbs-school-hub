@@ -201,6 +201,16 @@ export function AssessmentManager() {
 
       if (csaError) throw csaError;
 
+      // Get default semester
+      const { data: semesterData } = await supabase
+        .from('semesters')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!semesterData) throw new Error('No semester found');
+
       // Create assessment
       const { error: createError } = await supabase
         .from('assessments')
@@ -212,6 +222,7 @@ export function AssessmentManager() {
           weight: newAssessment.weight,
           assessment_date: newAssessment.assessment_date,
           created_by_teacher_id: teacherData.id,
+          semester_id: semesterData.id,
           is_published: false
         });
 

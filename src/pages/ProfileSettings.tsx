@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { Settings as SettingsIcon, User, Lock, Mail, Phone, Camera, Loader2, Save, Eye, EyeOff } from 'lucide-react';
 
@@ -358,6 +359,18 @@ export default function ProfileSettings() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleProfileSubmit} className="space-y-6">
+                {/* Avatar Upload */}
+                <div className="flex justify-center">
+                  <div className="relative">
+                    <Avatar className="h-24 w-24">
+                      <AvatarImage src={profileForm.avatar_url || undefined} />
+                      <AvatarFallback className="text-2xl">
+                        {profileForm.first_name?.[0]}{profileForm.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="first_name">First Name</Label>

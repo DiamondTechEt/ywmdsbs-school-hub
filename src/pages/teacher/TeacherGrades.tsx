@@ -37,6 +37,7 @@ interface Assessment {
   id: string;
   title: string;
   max_score: number;
+  weight: number;
   assessment_date: string;
   is_published: boolean;
   assessment_type_name: string;
@@ -144,7 +145,8 @@ export function TeacherGrades() {
           *,
           assessment_types(name),
           class_subject_assignments(
-            classes(name),
+            class_id,
+            classes(id, name),
             subjects(name)
           )
         `)
@@ -155,10 +157,11 @@ export function TeacherGrades() {
 
       const assessmentsWithStats = await Promise.all(
         (assessmentsData || []).map(async (assessment) => {
+          const classId = assessment.class_subject_assignments?.class_id;
           const { count: totalStudents } = await supabase
             .from('enrollments')
             .select('*', { count: 'exact', head: true })
-            .eq('class_id', assessment.class_subject_assignments?.classes?.id)
+            .eq('class_id', classId || '')
             .eq('is_active', true);
 
           const { count: gradedStudents } = await supabase
@@ -179,6 +182,7 @@ export function TeacherGrades() {
             id: assessment.id,
             title: assessment.title,
             max_score: assessment.max_score,
+            weight: assessment.weight,
             assessment_date: assessment.assessment_date,
             is_published: assessment.is_published,
             assessment_type_name: assessment.assessment_types?.name || 'Unknown',

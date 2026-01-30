@@ -1,5 +1,5 @@
 // Application types
-export type AppRole = 'super_admin' | 'teacher' | 'student';
+export type AppRole = 'super_admin' | 'teacher' | 'student' | 'parent';
 export type Gender = 'male' | 'female';
 export type BoardingStatus = 'boarding' | 'day';
 

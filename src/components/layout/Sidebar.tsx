@@ -96,6 +96,7 @@ export function Sidebar() {
           { to: '/classes', icon: School, label: 'Classes' },
           { to: '/subjects', icon: BookOpen, label: 'Subjects' },
           { to: '/academic-years', icon: Calendar, label: 'Academic Years' },
+          { to: '/semesters', icon: Calendar, label: 'Semesters' },
         ]
       },
       {
@@ -109,9 +110,10 @@ export function Sidebar() {
         ]
       },
       {
-        category: 'Analytics',
+        category: 'Analytics & Security',
         items: [
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+          { to: '/audit-logs', icon: ClipboardList, label: 'Audit Logs' },
         ]
       },
     ],

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, Users, Loader2, Eye, Calendar, BookOpen, Award } from 'lucide-react';
 import { z } from 'zod';
+import { logTeacherAction } from '@/lib/audit-logger';
 
 const teacherSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -179,9 +180,20 @@ export default function Teachers() {
       });
 
       if (teacherError) throw teacherError;
+      
+      return authData.user;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Teacher created successfully');
+      // Log teacher creation
+      if (data?.id) {
+        const teacherName = `${data.user_metadata?.full_name || 'Unknown Teacher'}`;
+        logTeacherAction('CREATE', data.id, teacherName, {
+          teacher_code: formData.teacher_code,
+          email: formData.email,
+          hire_date: formData.hire_date
+        });
+      }
       setIsDialogOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
@@ -206,8 +218,13 @@ export default function Teachers() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Teacher updated successfully');
+      // Log teacher update
+      const teacherName = `${variables.updates.first_name} ${variables.updates.last_name}`;
+      logTeacherAction('UPDATE', variables.id, teacherName, {
+        updates: variables.updates
+      });
       setIsDialogOpen(false);
       setEditingTeacher(null);
       resetForm();
@@ -227,8 +244,13 @@ export default function Teachers() {
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Teacher deactivated');
+      // Log teacher deactivation
+      logTeacherAction('DELETE', variables, undefined, {
+        action: 'deactivated',
+        timestamp: new Date().toISOString()
+      });
       queryClient.invalidateQueries({ queryKey: ['teachers'] });
     },
     onError: (error: any) => {

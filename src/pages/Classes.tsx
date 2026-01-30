@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, School, Loader2 } from 'lucide-react';
+import { logClassAction } from '@/lib/audit-logger';
 
 export default function Classes() {
   const queryClient = useQueryClient();
@@ -72,16 +73,25 @@ export default function Classes() {
 
   const createClass = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from('classes').insert({
+      const { data: result, error } = await supabase.from('classes').insert({
         name: data.name,
         grade_level: data.grade_level,
         academic_year_id: data.academic_year_id,
         homeroom_teacher_id: data.homeroom_teacher_id || null,
-      });
+      }).select().single();
       if (error) throw error;
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Class created successfully');
+      // Log class creation
+      if (data?.id) {
+        logClassAction('CREATE', data.id, data.name, {
+          grade_level: data.grade_level,
+          academic_year_id: data.academic_year_id,
+          homeroom_teacher_id: data.homeroom_teacher_id
+        });
+      }
       setIsDialogOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ['classes'] });
@@ -105,8 +115,12 @@ export default function Classes() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Class updated successfully');
+      // Log class update
+      logClassAction('UPDATE', variables.id, variables.updates.name, {
+        updates: variables.updates
+      });
       setIsDialogOpen(false);
       setEditingClass(null);
       resetForm();
@@ -126,8 +140,13 @@ export default function Classes() {
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Class deleted');
+      // Log class deletion
+      logClassAction('DELETE', variables, undefined, {
+        action: 'deleted',
+        timestamp: new Date().toISOString()
+      });
       queryClient.invalidateQueries({ queryKey: ['classes'] });
     },
     onError: (error: any) => {

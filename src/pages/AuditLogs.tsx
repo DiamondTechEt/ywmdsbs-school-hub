@@ -15,12 +15,16 @@ interface AuditLog {
   id: string;
   timestamp: string;
   user_id: string | null;
+  user_email?: string;
+  user_name?: string;
   role: string | null;
   action: string;
   entity_type: string;
   entity_id: string | null;
+  entity_name?: string;
   details: any;
   ip_address: string | null;
+  user_agent?: string;
   success: boolean;
 }
 
@@ -67,7 +71,10 @@ export default function AuditLogs() {
         log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.entity_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.role?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.entity_id?.toLowerCase().includes(searchTerm.toLowerCase());
+        log.entity_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.user_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.entity_name?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchesAction = filterAction === 'all' || log.action === filterAction;
       const matchesEntity = filterEntity === 'all' || log.entity_type === filterEntity;
@@ -213,6 +220,7 @@ export default function AuditLogs() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Timestamp</TableHead>
+                  <TableHead>User</TableHead>
                   <TableHead>Action</TableHead>
                   <TableHead>Entity</TableHead>
                   <TableHead>Role</TableHead>
@@ -228,11 +236,32 @@ export default function AuditLogs() {
                       {new Date(log.timestamp).toLocaleString()}
                     </TableCell>
                     <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {log.user_name || log.user_email || 'System'}
+                        </span>
+                        {log.user_email && log.user_name && (
+                          <span className="text-xs text-muted-foreground">
+                            {log.user_email}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="outline" className={getActionColor(log.action)}>
                         {log.action}
                       </Badge>
                     </TableCell>
-                    <TableCell>{log.entity_type}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{log.entity_type}</span>
+                        {log.entity_name && (
+                          <span className="text-xs text-muted-foreground">
+                            {log.entity_name}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {log.role && (
                         <Badge variant="secondary">{log.role}</Badge>
@@ -283,20 +312,31 @@ export default function AuditLogs() {
                   <p><Badge variant="outline" className={getActionColor(selectedLog.action)}>{selectedLog.action}</Badge></p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Entity Type</Label>
-                  <p>{selectedLog.entity_type}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Entity ID</Label>
-                  <p className="font-mono text-sm">{selectedLog.entity_id || '-'}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">User ID</Label>
-                  <p className="font-mono text-sm">{selectedLog.user_id || '-'}</p>
+                  <Label className="text-muted-foreground">User</Label>
+                  <div className="flex flex-col">
+                    <span className="font-medium">
+                      {selectedLog.user_name || selectedLog.user_email || 'System'}
+                    </span>
+                    {selectedLog.user_email && selectedLog.user_name && (
+                      <span className="text-sm text-muted-foreground">{selectedLog.user_email}</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Role</Label>
                   <p>{selectedLog.role || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Entity Type</Label>
+                  <p>{selectedLog.entity_type}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Entity Name</Label>
+                  <p>{selectedLog.entity_name || '-'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Entity ID</Label>
+                  <p className="font-mono text-sm">{selectedLog.entity_id || '-'}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">IP Address</Label>
@@ -319,6 +359,12 @@ export default function AuditLogs() {
                   </p>
                 </div>
               </div>
+              {selectedLog.user_agent && (
+                <div>
+                  <Label className="text-muted-foreground">User Agent</Label>
+                  <p className="text-sm text-muted-foreground break-all">{selectedLog.user_agent}</p>
+                </div>
+              )}
               {selectedLog.details && (
                 <div>
                   <Label className="text-muted-foreground">Details</Label>

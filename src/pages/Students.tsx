@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, GraduationCap, Loader2 } from 'lucide-react';
 import { z } from 'zod';
+import { logStudentAction, logBulkOperation } from '@/lib/audit-logger';
+import { notifyStudentGrade } from '@/lib/notifications';
 
 const studentSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -99,8 +101,16 @@ export default function Students() {
       if (studentError) throw studentError;
       return studentData;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       toast.success('Student created successfully');
+      // Log student creation with readable name
+      if (data?.[0]?.id) {
+        const studentName = `${data[0].first_name} ${data[0].last_name}`;
+        logStudentAction('CREATE', data[0].id, studentName, {
+          student_id_code: data[0].student_id_code,
+          email: data[0].email
+        });
+      }
       setIsDialogOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ['students'] });
@@ -127,8 +137,13 @@ export default function Students() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables: any) => {
       toast.success('Student updated successfully');
+      // Log student update with readable name
+      const studentName = `${variables.updates.first_name} ${variables.updates.last_name}`;
+      logStudentAction('UPDATE', variables.id, studentName, {
+        updates: variables.updates
+      });
       setIsDialogOpen(false);
       setEditingStudent(null);
       resetForm();
@@ -148,8 +163,13 @@ export default function Students() {
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables: any) => {
       toast.success('Student deactivated');
+      // Log student deactivation
+      logStudentAction('DELETE', variables, undefined, {
+        action: 'deactivated',
+        timestamp: new Date().toISOString()
+      });
       queryClient.invalidateQueries({ queryKey: ['students'] });
     },
     onError: (error: any) => {

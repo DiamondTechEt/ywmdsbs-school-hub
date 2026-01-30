@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import NotificationBell from '@/components/NotificationBell';
 
 export function Sidebar() {
   const { role, signOut, user } = useAuth();
@@ -175,6 +176,8 @@ export function Sidebar() {
               {isCollapsed ? "SH" : "School Hub"}
             </h1>
             <div className="flex items-center gap-2">
+              {/* Notification Bell */}
+              <NotificationBell />
               {/* Desktop collapse button */}
               <Button
                 variant="ghost"

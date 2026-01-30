@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, BookOpen, Loader2 } from 'lucide-react';
+import { logAuditEvent } from '@/lib/audit-logger';
 
 export default function Subjects() {
   const queryClient = useQueryClient();
@@ -44,16 +45,31 @@ export default function Subjects() {
 
   const createSubject = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const { error } = await supabase.from('subjects').insert({
+      const { data: result, error } = await supabase.from('subjects').insert({
         code: data.code,
         name: data.name,
         credit: data.credit,
         grade_level: data.grade_level,
-      });
+      }).select().single();
       if (error) throw error;
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Subject created successfully');
+      // Log subject creation
+      if (data?.id) {
+        logAuditEvent({
+          action: 'CREATE',
+          entityType: 'SUBJECT',
+          entityId: data.id,
+          entityName: data.name,
+          details: {
+            code: data.code,
+            credit: data.credit,
+            grade_level: data.grade_level
+          }
+        });
+      }
       setIsDialogOpen(false);
       resetForm();
       queryClient.invalidateQueries({ queryKey: ['subjects'] });
@@ -77,8 +93,18 @@ export default function Subjects() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Subject updated successfully');
+      // Log subject update
+      logAuditEvent({
+        action: 'UPDATE',
+        entityType: 'SUBJECT',
+        entityId: variables.id,
+        entityName: variables.updates.name,
+        details: {
+          updates: variables.updates
+        }
+      });
       setIsDialogOpen(false);
       setEditingSubject(null);
       resetForm();
@@ -98,8 +124,18 @@ export default function Subjects() {
       
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       toast.success('Subject deactivated');
+      // Log subject deletion
+      logAuditEvent({
+        action: 'DELETE',
+        entityType: 'SUBJECT',
+        entityId: variables,
+        details: {
+          action: 'deactivated',
+          timestamp: new Date().toISOString()
+        }
+      });
       queryClient.invalidateQueries({ queryKey: ['subjects'] });
     },
     onError: (error: any) => {

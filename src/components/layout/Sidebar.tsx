@@ -125,6 +125,7 @@ export function Sidebar() {
       { to: '/student-assessments', icon: Eye, label: 'Student Assessments' },
       { to: '/teacher-assessments', icon: BookOpen, label: 'Assessments' },
       { to: '/teacher-grades', icon: Award, label: 'Grades' },
+      { to: '/teacher-student-grades', icon: FileSpreadsheet, label: 'Student Grades Table' },
       { to: '/teacher-analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/upload-grades', icon: FileSpreadsheet, label: 'Upload Grades' },
       { to: '/profile-settings', icon: User, label: 'Profile Settings' },
@@ -136,9 +137,13 @@ export function Sidebar() {
       { to: '/my-performance', icon: BarChart3, label: 'Performance' },
       { to: '/profile-settings', icon: User, label: 'Profile Settings' },
     ],
+    parent: [
+      { to: '/parent-portal', icon: LayoutDashboard, label: 'Parent Portal' },
+      { to: '/profile-settings', icon: User, label: 'Profile Settings' },
+    ],
   };
 
-  const items = role ? navItems[role] : [];
+  const items = role ? navItems[role as keyof typeof navItems] : [];
 
   return (
     <>

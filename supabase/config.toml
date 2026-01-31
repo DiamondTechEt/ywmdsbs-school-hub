@@ -1,1 +1,4 @@
 project_id = "ficeoulrbynstevkidtf"
+
+[functions.notify-grades-published]
+verify_jwt = false

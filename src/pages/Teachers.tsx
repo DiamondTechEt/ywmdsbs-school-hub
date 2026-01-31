@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Search, Edit, Trash2, Users, Loader2, Eye, Calendar, BookOpen, Award } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, Loader2, Eye, Calendar, BookOpen, Award, Ban, Unlock, Shield } from 'lucide-react';
 import { z } from 'zod';
 import { logTeacherAction } from '@/lib/audit-logger';
 
@@ -29,9 +29,14 @@ export default function Teachers() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [isUnbanDialogOpen, setIsUnbanDialogOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<any>(null);
   const [detailsTeacher, setDetailsTeacher] = useState<any>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [selectedTeacher, setSelectedTeacher] = useState<any>(null);
+  const [banReason, setBanReason] = useState('');
+  const [banNotes, setBanNotes] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -48,7 +53,10 @@ export default function Teachers() {
     queryFn: async () => {
       let query = supabase
         .from('teachers')
-        .select('*')
+        .select(`
+          *,
+          banned_by_teacher:teachers!banned_by(first_name, last_name)
+        `)
         .order('last_name');
 
       if (searchQuery) {
@@ -258,6 +266,70 @@ export default function Teachers() {
     },
   });
 
+  const banTeacher = useMutation({
+    mutationFn: async (teacherId: string) => {
+      // Get current admin ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: adminData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      const { error } = await supabase
+        .from('teachers')
+        .update({
+          is_banned: true,
+          banned_at: new Date().toISOString(),
+          banned_by: adminData?.id,
+          ban_reason: banReason.trim(),
+          ban_notes: banNotes.trim() || null
+        } as any)
+        .eq('id', teacherId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Teacher banned successfully');
+      setIsBanDialogOpen(false);
+      setSelectedTeacher(null);
+      setBanReason('');
+      setBanNotes('');
+      queryClient.invalidateQueries({ queryKey: ['teachers'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to ban teacher');
+    },
+  });
+
+  const unbanTeacher = useMutation({
+    mutationFn: async (teacherId: string) => {
+      const { error } = await supabase
+        .from('teachers')
+        .update({
+          is_banned: false,
+          banned_at: null,
+          banned_by: null,
+          ban_reason: null,
+          ban_notes: null
+        } as any)
+        .eq('id', teacherId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Teacher unbanned successfully');
+      setIsUnbanDialogOpen(false);
+      setSelectedTeacher(null);
+      queryClient.invalidateQueries({ queryKey: ['teachers'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to unban teacher');
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       email: '',
@@ -306,6 +378,31 @@ export default function Teachers() {
   const openDetailsDialog = (teacher: any) => {
     setDetailsTeacher(teacher);
     setIsDetailsDialogOpen(true);
+  };
+
+  const openBanDialog = (teacher: any) => {
+    setSelectedTeacher(teacher);
+    setBanReason('');
+    setBanNotes('');
+    setIsBanDialogOpen(true);
+  };
+
+  const openUnbanDialog = (teacher: any) => {
+    setSelectedTeacher(teacher);
+    setIsUnbanDialogOpen(true);
+  };
+
+  const handleBanTeacher = () => {
+    if (!selectedTeacher || !banReason.trim()) {
+      toast.error('Please provide a ban reason');
+      return;
+    }
+    banTeacher.mutate(selectedTeacher.id);
+  };
+
+  const handleUnbanTeacher = () => {
+    if (!selectedTeacher) return;
+    unbanTeacher.mutate(selectedTeacher.id);
   };
 
   return (
@@ -486,6 +583,7 @@ export default function Teachers() {
                     <TableHead>Gender</TableHead>
                     <TableHead>Hire Date</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Ban Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -503,6 +601,25 @@ export default function Teachers() {
                           {teacher.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {teacher.is_banned ? (
+                          <div className="space-y-1">
+                            <Badge variant="destructive">Banned</Badge>
+                            {teacher.banned_at && (
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(teacher.banned_at).toLocaleDateString()}
+                              </div>
+                            )}
+                            {teacher.banned_by_teacher && (
+                              <div className="text-xs text-muted-foreground">
+                                By: {teacher.banned_by_teacher.first_name} {teacher.banned_by_teacher.last_name}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="default">Active</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center gap-2">
                           <Button
@@ -519,6 +636,25 @@ export default function Teachers() {
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          {teacher.is_banned ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openUnbanDialog(teacher)}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Unlock className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openBanDialog(teacher)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
@@ -726,6 +862,90 @@ export default function Teachers() {
               <p className="text-muted-foreground">No teacher details available</p>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Dialog */}
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Ban className="h-5 w-5" />
+              Ban Teacher
+            </DialogTitle>
+            <DialogDescription>
+              Ban {selectedTeacher?.first_name} {selectedTeacher?.last_name} from accessing the system
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Ban Reason *</Label>
+              <Select value={banReason} onValueChange={setBanReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Academic misconduct">Academic misconduct</SelectItem>
+                  <SelectItem value="Code of conduct violation">Code of conduct violation</SelectItem>
+                  <SelectItem value="Security breach">Security breach</SelectItem>
+                  <SelectItem value="Inappropriate behavior">Inappropriate behavior</SelectItem>
+                  <SelectItem value="Policy violation">Policy violation</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Additional Notes</Label>
+              <textarea
+                className="w-full p-2 border rounded-md"
+                rows={3}
+                value={banNotes}
+                onChange={(e) => setBanNotes(e.target.value)}
+                placeholder="Provide any additional details about this ban..."
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsBanDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleBanTeacher}>
+                Confirm Ban
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unban Dialog */}
+      <Dialog open={isUnbanDialogOpen} onOpenChange={setIsUnbanDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <Unlock className="h-5 w-5" />
+              Unban Teacher
+            </DialogTitle>
+            <DialogDescription>
+              Restore access for {selectedTeacher?.first_name} {selectedTeacher?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-700">
+                This action will immediately restore the teacher's access to the system.
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsUnbanDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUnbanTeacher}>
+                Confirm Unban
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Search, Download, Users, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, Download, Users, Loader2, ArrowUpDown, Edit, Save, X, Plus, Trash2 } from 'lucide-react';
 
 interface StudentGrade {
   student_id: string;
@@ -34,31 +36,50 @@ interface Assessment {
   title: string;
   weight: number;
   max_score: number;
+  class_id: string;
+  subject_id: string;
+  academic_year_id: string;
+  semester_id: string;
 }
 
 interface StudentGradesTableProps {
   classId: string;
   subjectId: string;
   semesterId?: string;
+  onGradeUpdate?: () => void;
+  refreshKey?: number; // Add refreshKey prop
 }
 
-export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGradesTableProps) {
+export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpdate, refreshKey }: StudentGradesTableProps) {
   const [loading, setLoading] = useState(false);
   const [studentGrades, setStudentGrades] = useState<StudentGrade[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'id' | 'grade'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  
+  // Dialog states
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  
+  // Form states
+  const [selectedStudent, setSelectedStudent] = useState<string>('');
+  const [selectedAssessment, setSelectedAssessment] = useState<string>('');
+  const [selectedScore, setSelectedScore] = useState<string>('');
+  const [editingGrade, setEditingGrade] = useState<any>(null);
+  const [availableStudents, setAvailableStudents] = useState<any[]>([]);
 
   useEffect(() => {
     if (classId && subjectId) {
       loadGradesData();
     }
-  }, [classId, subjectId, semesterId]);
+  }, [classId, subjectId, semesterId, refreshKey]); // Add refreshKey to dependencies
 
   const loadGradesData = async () => {
     try {
       setLoading(true);
+      console.log('Loading grades data for:', { classId, subjectId, semesterId });
 
       // Get class subject assignment
       const { data: csaData, error: csaError } = await supabase
@@ -68,11 +89,15 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
         .eq('subject_id', subjectId)
         .single();
 
+      console.log('CSA Data:', csaData);
+
       if (csaError && csaError.code !== 'PGRST116') {
+        console.error('CSA Error:', csaError);
         throw csaError;
       }
 
       if (!csaData) {
+        console.log('No CSA data found');
         setStudentGrades([]);
         setAssessments([]);
         return;
@@ -81,7 +106,20 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
       // Get assessments for this class-subject
       let assessmentsQuery = supabase
         .from('assessments')
-        .select('id, title, weight, max_score')
+        .select(`
+          id, 
+          title, 
+          weight, 
+          max_score, 
+          semester_id,
+          class_subject_assignments!inner(
+            class_id,
+            subject_id
+          ),
+          semesters!inner(
+            academic_year_id
+          )
+        `)
         .eq('class_subject_assignment_id', csaData.id)
         .eq('is_published', true)
         .order('assessment_date', { ascending: true });
@@ -92,9 +130,28 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
 
       const { data: assessmentsData, error: assessmentsError } = await assessmentsQuery;
 
-      if (assessmentsError) throw assessmentsError;
+      console.log('Assessments Data:', assessmentsData);
+      console.log('Assessments Error:', assessmentsError);
 
-      setAssessments(assessmentsData || []);
+      if (assessmentsError) {
+        console.error('Assessments query error:', assessmentsError);
+        throw assessmentsError;
+      }
+
+      // Transform assessment data to flatten nested structure
+      const transformedAssessments = (assessmentsData || []).map(assessment => ({
+        id: assessment.id,
+        title: assessment.title,
+        weight: assessment.weight,
+        max_score: assessment.max_score,
+        semester_id: assessment.semester_id,
+        class_id: assessment.class_subject_assignments.class_id,
+        subject_id: assessment.class_subject_assignments.subject_id,
+        academic_year_id: assessment.semesters.academic_year_id
+      }));
+
+      console.log('Transformed Assessments:', transformedAssessments);
+      setAssessments(transformedAssessments);
 
       // Get enrolled students
       const { data: enrollmentsData, error: enrollmentsError } = await supabase
@@ -189,6 +246,214 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
     return 'F';
   };
 
+  // CRUD Functions for Popup Forms
+  const openCreateDialog = () => {
+    setSelectedStudent('');
+    setSelectedAssessment('');
+    setSelectedScore('');
+    setIsCreateDialogOpen(true);
+  };
+
+  const openEditDialog = (studentId: string, assessmentId: string, currentScore: number) => {
+    const student = studentGrades.find(sg => sg.student_id === studentId);
+    const assessment = assessments.find(a => a.id === assessmentId);
+    
+    setEditingGrade({
+      studentId,
+      assessmentId,
+      studentName: student?.full_name || '',
+      assessmentTitle: assessment?.title || '',
+      currentScore,
+      maxScore: assessment?.max_score || 100
+    });
+    setSelectedScore(currentScore.toString());
+    setIsEditDialogOpen(true);
+  };
+
+  const openDeleteDialog = (studentId: string, assessmentId: string, studentName: string, assessmentTitle: string) => {
+    setEditingGrade({
+      studentId,
+      assessmentId,
+      studentName,
+      assessmentTitle
+    });
+    setIsDeleteDialogOpen(true);
+  };
+
+  const closeAllDialogs = () => {
+    setIsCreateDialogOpen(false);
+    setIsEditDialogOpen(false);
+    setIsDeleteDialogOpen(false);
+    setEditingGrade(null);
+    setSelectedStudent('');
+    setSelectedAssessment('');
+    setSelectedScore('');
+  };
+
+  const createGrade = async () => {
+    try {
+      if (!selectedStudent || !selectedAssessment || !selectedScore) {
+        toast.error('Please fill in all fields');
+        return;
+      }
+
+      const assessment = assessments.find(a => a.id === selectedAssessment);
+      if (!assessment) return;
+
+      const score = parseFloat(selectedScore);
+      if (isNaN(score) || score < 0 || score > assessment.max_score) {
+        toast.error(`Score must be between 0 and ${assessment.max_score}`);
+        return;
+      }
+
+      const percentage = Math.round((score / assessment.max_score) * 100);
+      const letterGrade = calculateLetterGrade(percentage);
+
+      // Get teacher ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!teacherData) throw new Error('Teacher not found');
+
+      // Check if grade already exists
+      const { data: existingGrade } = await supabase
+        .from('grades')
+        .select('id')
+        .eq('student_id', selectedStudent)
+        .eq('assessment_id', selectedAssessment)
+        .single();
+
+      if (existingGrade) {
+        toast.error('Grade already exists for this student and assessment');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('grades')
+        .insert({
+          student_id: selectedStudent,
+          assessment_id: selectedAssessment,
+          score,
+          percentage,
+          letter_grade: letterGrade,
+          teacher_id: teacherData.id,
+          class_id: assessment.class_id,
+          subject_id: assessment.subject_id,
+          academic_year_id: assessment.academic_year_id,
+          semester_id: assessment.semester_id,
+          is_published: true
+        });
+
+      if (error) throw error;
+      toast.success('Grade created successfully');
+
+      closeAllDialogs();
+      loadGradesData();
+      onGradeUpdate?.();
+    } catch (error) {
+      console.error('Error creating grade:', error);
+      toast.error('Failed to create grade');
+    }
+  };
+
+  const updateGrade = async () => {
+    try {
+      if (!editingGrade || !selectedScore) {
+        toast.error('Please provide a score');
+        return;
+      }
+
+      const assessment = assessments.find(a => a.id === editingGrade.assessmentId);
+      if (!assessment) return;
+
+      const score = parseFloat(selectedScore);
+      if (isNaN(score) || score < 0 || score > assessment.max_score) {
+        toast.error(`Score must be between 0 and ${assessment.max_score}`);
+        return;
+      }
+
+      const percentage = Math.round((score / assessment.max_score) * 100);
+      const letterGrade = calculateLetterGrade(percentage);
+
+      const { error } = await supabase
+        .from('grades')
+        .update({
+          score,
+          percentage,
+          letter_grade: letterGrade,
+          updated_at: new Date().toISOString()
+        })
+        .eq('student_id', editingGrade.studentId)
+        .eq('assessment_id', editingGrade.assessmentId);
+
+      if (error) throw error;
+      toast.success('Grade updated successfully');
+
+      closeAllDialogs();
+      loadGradesData();
+      onGradeUpdate?.();
+    } catch (error) {
+      console.error('Error updating grade:', error);
+      toast.error('Failed to update grade');
+    }
+  };
+
+  const deleteGrade = async () => {
+    try {
+      if (!editingGrade) return;
+
+      const { error } = await supabase
+        .from('grades')
+        .delete()
+        .eq('student_id', editingGrade.studentId)
+        .eq('assessment_id', editingGrade.assessmentId);
+
+      if (error) throw error;
+      toast.success('Grade deleted successfully');
+
+      closeAllDialogs();
+      loadGradesData();
+      onGradeUpdate?.();
+    } catch (error) {
+      console.error('Error deleting grade:', error);
+      toast.error('Failed to delete grade');
+    }
+  };
+
+  const loadAvailableStudents = async () => {
+    try {
+      const { data: enrollmentsData } = await supabase
+        .from('enrollments')
+        .select(`
+          students(
+            id,
+            student_id_code,
+            first_name,
+            last_name
+          )
+        `)
+        .eq('class_id', classId)
+        .eq('is_active', true);
+
+      const students = (enrollmentsData || []).map(enrollment => enrollment.students);
+      setAvailableStudents(students);
+    } catch (error) {
+      console.error('Error loading students:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      loadAvailableStudents();
+    }
+  }, [isCreateDialogOpen]);
+
   const getFilteredAndSortedStudents = () => {
     let filtered = studentGrades.filter(student => {
       const searchLower = searchTerm.toLowerCase();
@@ -279,10 +544,16 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
             <Users className="h-5 w-5" />
             Student Grades ({studentGrades.length} students)
           </CardTitle>
-          <Button variant="outline" size="sm" onClick={exportToCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={openCreateDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Grade
+            </Button>
+            <Button variant="outline" size="sm" onClick={exportToCSV}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -361,17 +632,44 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
                       {student.assessments.map((assessment) => (
                         <TableCell key={assessment.id} className="text-center">
                           {assessment.score !== null ? (
-                            <div className="flex flex-col items-center">
-                              <span className="font-medium">{assessment.score}/{assessment.max_score}</span>
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">{assessment.score}/{assessment.max_score}</span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => openEditDialog(student.student_id, assessment.id, assessment.score)}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                                  onClick={() => openDeleteDialog(student.student_id, assessment.id, student.full_name, assessment.title)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                               <Badge 
                                 variant={getGradeBadgeVariant(assessment.letter_grade)}
-                                className="text-xs mt-1"
+                                className="text-xs"
                               >
                                 {assessment.letter_grade || '-'}
                               </Badge>
                             </div>
                           ) : (
-                            <span className="text-muted-foreground">-</span>
+                            <div className="flex items-center justify-center">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 w-6 p-0"
+                                onClick={() => openEditDialog(student.student_id, assessment.id, 0)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </div>
                           )}
                         </TableCell>
                       ))}
@@ -391,6 +689,132 @@ export function StudentGradesTable({ classId, subjectId, semesterId }: StudentGr
           )}
         </div>
       </CardContent>
+      
+      {/* Create Grade Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create New Grade</DialogTitle>
+            <DialogDescription>
+              Add a new grade for a student and assessment
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Student</Label>
+              <Select value={selectedStudent} onValueChange={setSelectedStudent}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a student" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableStudents.map((student) => (
+                    <SelectItem key={student.id} value={student.id}>
+                      {student.first_name} {student.last_name} ({student.student_id_code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Assessment</Label>
+              <Select value={selectedAssessment} onValueChange={setSelectedAssessment}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an assessment" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assessments.map((assessment) => (
+                    <SelectItem key={assessment.id} value={assessment.id}>
+                      {assessment.title} (Max: {assessment.max_score})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Score</Label>
+              <Input
+                type="number"
+                value={selectedScore}
+                onChange={(e) => setSelectedScore(e.target.value)}
+                placeholder="Enter score"
+                min="0"
+                max={assessments.find(a => a.id === selectedAssessment)?.max_score || 100}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeAllDialogs}>
+                Cancel
+              </Button>
+              <Button onClick={createGrade}>
+                Create Grade
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Grade Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Grade</DialogTitle>
+            <DialogDescription>
+              Update grade for {editingGrade?.studentName} - {editingGrade?.assessmentTitle}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Score (Max: {editingGrade?.maxScore})</Label>
+              <Input
+                type="number"
+                value={selectedScore}
+                onChange={(e) => setSelectedScore(e.target.value)}
+                placeholder="Enter score"
+                min="0"
+                max={editingGrade?.maxScore || 100}
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeAllDialogs}>
+                Cancel
+              </Button>
+              <Button onClick={updateGrade}>
+                Update Grade
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Grade Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Grade</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete the grade for {editingGrade?.studentName} - {editingGrade?.assessmentTitle}?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. The grade will be permanently deleted.
+            </p>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeAllDialogs}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={deleteGrade}>
+                Delete Grade
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

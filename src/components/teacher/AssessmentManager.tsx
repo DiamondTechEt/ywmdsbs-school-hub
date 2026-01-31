@@ -21,6 +21,8 @@ interface Assessment {
   is_published: boolean;
   class_name: string;
   subject_name: string;
+  class_id: string;
+  semester_id?: string;
   students_count?: number;
 }
 
@@ -40,6 +42,12 @@ interface TeacherClass {
   role: string;
 }
 
+interface Semester {
+  id: string;
+  name: string;
+  academic_year_id: string;
+}
+
 interface NewAssessment {
   title: string;
   assessment_type_id: string;
@@ -47,14 +55,18 @@ interface NewAssessment {
   weight: number;
   assessment_date: string;
   class_id: string;
+  semester_id: string;
 }
 
 export function AssessmentManager() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [teacherClasses, setTeacherClasses] = useState<TeacherClass[]>([]);
   const [assessmentTypes, setAssessmentTypes] = useState<AssessmentType[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newAssessment, setNewAssessment] = useState<NewAssessment>({
     title: '',
@@ -62,7 +74,8 @@ export function AssessmentManager() {
     max_score: 100,
     weight: 10,
     assessment_date: new Date().toISOString().split('T')[0],
-    class_id: ''
+    class_id: '',
+    semester_id: ''
   });
 
   useEffect(() => {
@@ -120,6 +133,20 @@ export function AssessmentManager() {
       if (typesError) throw typesError;
       setAssessmentTypes(typesData || []);
 
+      // Load semesters
+      const { data: semestersData, error: semestersError } = await supabase
+        .from('semesters')
+        .select('*')
+        .order('start_date', { ascending: false });
+
+      if (semestersError) throw semestersError;
+      setSemesters(semestersData || []);
+      
+      // Auto-select current semester if available
+      if (semestersData && semestersData.length > 0) {
+        setNewAssessment(prev => ({ ...prev, semester_id: semestersData[0].id }));
+      }
+
       // Load teacher's assessments
       const { data: assessmentsData, error: assessmentsError } = await supabase
         .from('assessments')
@@ -127,6 +154,7 @@ export function AssessmentManager() {
           *,
           assessment_types(name),
           class_subject_assignments(
+            class_id,
             classes(name),
             subjects(name)
           )
@@ -146,7 +174,9 @@ export function AssessmentManager() {
         assessment_date: assessment.assessment_date,
         is_published: assessment.is_published,
         class_name: assessment.class_subject_assignments?.classes?.name || 'Unknown Class',
-        subject_name: assessment.class_subject_assignments?.subjects?.name || 'Unknown Subject'
+        subject_name: assessment.class_subject_assignments?.subjects?.name || 'Unknown Subject',
+        class_id: assessment.class_subject_assignments?.class_id || '',
+        semester_id: assessment.semester_id
       }));
 
       setAssessments(assessments);
@@ -201,15 +231,8 @@ export function AssessmentManager() {
 
       if (csaError) throw csaError;
 
-      // Get default semester
-      const { data: semesterData } = await supabase
-        .from('semesters')
-        .select('id')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (!semesterData) throw new Error('No semester found');
+      // Validate semester selection
+      if (!newAssessment.semester_id) throw new Error('Please select a semester');
 
       // Create assessment
       const { error: createError } = await supabase
@@ -222,7 +245,7 @@ export function AssessmentManager() {
           weight: newAssessment.weight,
           assessment_date: newAssessment.assessment_date,
           created_by_teacher_id: teacherData.id,
-          semester_id: semesterData.id,
+          semester_id: newAssessment.semester_id,
           is_published: false
         });
 
@@ -239,7 +262,8 @@ export function AssessmentManager() {
         max_score: 100,
         weight: 10,
         assessment_date: new Date().toISOString().split('T')[0],
-        class_id: ''
+        class_id: '',
+        semester_id: ''
       });
       setIsCreateDialogOpen(false);
       loadData();
@@ -301,6 +325,70 @@ export function AssessmentManager() {
       toast({
         title: "Error",
         description: "Failed to delete assessment",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEditAssessment = (assessment: Assessment) => {
+    setEditingAssessment(assessment);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateAssessment = async () => {
+    if (!editingAssessment) return;
+
+    try {
+      // Get current teacher ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!teacherData) throw new Error('Teacher not found');
+
+      // Find class subject assignment using the assessment's current assignment
+      const { data: currentCSA } = await supabase
+        .from('class_subject_assignments')
+        .select('id, class_id, subject_id')
+        .eq('id', editingAssessment.class_id)
+        .single();
+
+      if (!currentCSA) throw new Error('Class-subject assignment not found');
+
+      // Update assessment
+      const { error: updateError } = await supabase
+        .from('assessments')
+        .update({
+          title: editingAssessment.title,
+          assessment_type_id: editingAssessment.assessment_type_id,
+          max_score: editingAssessment.max_score,
+          weight: editingAssessment.weight,
+          assessment_date: editingAssessment.assessment_date,
+          semester_id: editingAssessment.semester_id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingAssessment.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Success",
+        description: "Assessment updated successfully"
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingAssessment(null);
+      loadData();
+    } catch (error) {
+      console.error('Error updating assessment:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update assessment",
         variant: "destructive"
       });
     }
@@ -372,6 +460,25 @@ export function AssessmentManager() {
                           {cls.class_name} {cls.subject_name && `(${cls.subject_name})`}
                         </SelectItem>
                       ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="semester">Semester</Label>
+                <Select
+                  value={newAssessment.semester_id}
+                  onValueChange={(value) => setNewAssessment(prev => ({ ...prev, semester_id: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map(semester => (
+                      <SelectItem key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -449,6 +556,141 @@ export function AssessmentManager() {
         </Dialog>
       </div>
 
+      {/* Edit Assessment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Assessment</DialogTitle>
+            <DialogDescription>
+              Update assessment details
+            </DialogDescription>
+          </DialogHeader>
+          {editingAssessment && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={editingAssessment.title}
+                  onChange={(e) => setEditingAssessment(prev => ({ ...prev, title: e.target.value }))}
+                  placeholder="Enter assessment title"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-class">Class</Label>
+                <Select
+                  value={editingAssessment.class_id}
+                  onValueChange={(value) => setEditingAssessment(prev => ({ ...prev, class_id: value }))}
+                  disabled
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {teacherClasses
+                      .filter(c => c.role === 'subject_teacher')
+                      .map(cls => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.class_name} {cls.subject_name && `(${cls.subject_name})`}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-semester">Semester</Label>
+                <Select
+                  value={editingAssessment.semester_id || ''}
+                  onValueChange={(value) => setEditingAssessment(prev => ({ ...prev, semester_id: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map(semester => (
+                      <SelectItem key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-type">Assessment Type</Label>
+                <Select
+                  value={editingAssessment.assessment_type_id}
+                  onValueChange={(value) => {
+                    const selectedType = assessmentTypes.find(t => t.id === value);
+                    setEditingAssessment(prev => ({ 
+                      ...prev, 
+                      assessment_type_id: value,
+                      weight: selectedType?.weight_default || 10
+                    }));
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assessment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assessmentTypes.map(type => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name} (Default weight: {type.weight_default})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-max_score">Max Score</Label>
+                  <Input
+                    id="edit-max_score"
+                    type="number"
+                    value={editingAssessment.max_score}
+                    onChange={(e) => setEditingAssessment(prev => ({ ...prev, max_score: Number(e.target.value) }))}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-weight">Weight (%)</Label>
+                  <Input
+                    id="edit-weight"
+                    type="number"
+                    value={editingAssessment.weight}
+                    onChange={(e) => setEditingAssessment(prev => ({ ...prev, weight: Number(e.target.value) }))}
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-date">Assessment Date</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={editingAssessment.assessment_date}
+                  onChange={(e) => setEditingAssessment(prev => ({ ...prev, assessment_date: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateAssessment}>
+                  Update Assessment
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {assessments.length === 0 ? (
         <Card>
           <CardContent className="flex items-center justify-center p-8">
@@ -500,6 +742,13 @@ export function AssessmentManager() {
                         Publish
                       </Button>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditAssessment(assessment)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

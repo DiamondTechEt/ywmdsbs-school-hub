@@ -18,7 +18,9 @@ import {
   Award,
   User,
   Menu,
-  X
+  X,
+  Shield,
+  Key
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -39,7 +41,7 @@ export function Sidebar() {
     window.dispatchEvent(new CustomEvent('sidebarStateChange', { detail: { width } }));
   }, [isCollapsed]);
 
-  // Fetch user name from user_names table
+  // Fetch user name from profiles table
   useEffect(() => {
     if (user) {
       fetchUserName();
@@ -48,18 +50,19 @@ export function Sidebar() {
 
   const fetchUserName = async () => {
     try {
+      // Try to get user name from profiles table first
       const { data, error } = await supabase
-        .from('user_names')
-        .select('display_name, full_name')
-        .eq('user_id', user?.id)
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', user?.id)
         .single();
 
       if (error) {
-        console.error('Error fetching user name:', error);
+        console.error('Error fetching user name from profiles:', error);
         // Fallback to auth user metadata if available
         setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User');
       } else {
-        setUserName(data?.display_name || data?.full_name || 'User');
+        setUserName(data?.full_name || data?.email?.split('@')[0] || 'User');
       }
     } catch (error) {
       console.error('Error fetching user name:', error);
@@ -114,7 +117,9 @@ export function Sidebar() {
         category: 'Analytics & Security',
         items: [
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+          { to: '/admin/users', icon: Key, label: 'User Management' },
           { to: '/audit-logs', icon: ClipboardList, label: 'Audit Logs' },
+          { to: '/ban-management', icon: Shield, label: 'Ban Management' },
         ]
       },
     ],
@@ -122,7 +127,6 @@ export function Sidebar() {
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/teacher-dashboard', icon: School, label: 'My Classes' },
       { to: '/teacher-students', icon: Users, label: 'Student Management' },
-      { to: '/student-assessments', icon: Eye, label: 'Student Assessments' },
       { to: '/teacher-assessments', icon: BookOpen, label: 'Assessments' },
       { to: '/teacher-grades', icon: Award, label: 'Grades' },
       { to: '/teacher-student-grades', icon: FileSpreadsheet, label: 'Student Grades Table' },

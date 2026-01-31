@@ -12,6 +12,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  resetUserPassword: (userId: string, newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -158,8 +159,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resetUserPassword = async (userId: string, newPassword: string) => {
+    try {
+      console.log('Attempting to reset password for user:', userId);
+      
+      // Try admin API first
+      const { error } = await supabase.auth.admin.updateUserById(userId, {
+        password: newPassword,
+      });
+      
+      if (error) {
+        console.error('Admin API error:', error);
+        
+        // Check if it's a permission error
+        if (error.message.includes('insufficient_privilege') || error.message.includes('403') || error.message.includes('authorization')) {
+          return { 
+            error: new Error('Password reset requires admin privileges. Current user may not have sufficient permissions to reset passwords.') 
+          };
+        }
+        
+        return { error };
+      }
+      
+      console.log('Password reset successful');
+      return { error: null };
+    } catch (err) {
+      console.error('Unexpected error during password reset:', err);
+      return { error: new Error('Unexpected error during password reset') };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, role, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, role, loading, signIn, signUp, signOut, resetUserPassword }}>
       {children}
     </AuthContext.Provider>
   );

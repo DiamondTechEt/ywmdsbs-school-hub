@@ -29,6 +29,7 @@ export default function TeacherStudentGrades() {
   const [selectedSubject, setSelectedSubject] = useState<string>('');
   const [selectedSemester, setSelectedSemester] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Add refresh key to force re-render
 
   useEffect(() => {
     loadTeacherClasses();
@@ -77,7 +78,7 @@ export default function TeacherStudentGrades() {
       // Auto-select first class and subject if available
       if (classes.length > 0) {
         setSelectedClass(classes[0].class_id);
-        setSelectedSubject(classes[0].subject_id || '');
+        setSelectedSubject(classes[0].subject_id || 'no-subject');
       }
     } catch (error) {
       console.error('Error loading teacher classes:', error);
@@ -117,10 +118,16 @@ export default function TeacherStudentGrades() {
     setSelectedClass(classId);
     const subjects = teacherClasses.filter(c => c.class_id === classId);
     if (subjects.length > 0) {
-      setSelectedSubject(subjects[0].subject_id || '');
+      setSelectedSubject(subjects[0].subject_id || 'no-subject');
     } else {
-      setSelectedSubject('');
+      setSelectedSubject('no-subject');
     }
+  };
+
+  // Callback to handle grade updates and refresh the table
+  const handleGradeUpdate = () => {
+    // Increment refresh key to force StudentGradesTable to re-fetch data
+    setRefreshKey(prev => prev + 1);
   };
 
   if (loading) {
@@ -175,7 +182,7 @@ export default function TeacherStudentGrades() {
                 </SelectTrigger>
                 <SelectContent>
                   {availableSubjects.map(sub => (
-                    <SelectItem key={sub.subject_id} value={sub.subject_id || ''}>
+                    <SelectItem key={sub.subject_id || `no-subject-${sub.class_id}`} value={sub.subject_id || 'no-subject'}>
                       {sub.subject_name}
                     </SelectItem>
                   ))}
@@ -190,7 +197,7 @@ export default function TeacherStudentGrades() {
                   <SelectValue placeholder="All semesters" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Semesters</SelectItem>
+                  <SelectItem value="all-semesters">All Semesters</SelectItem>
                   {semesters.map(semester => (
                     <SelectItem key={semester.id} value={semester.id}>
                       {semester.name}
@@ -204,11 +211,13 @@ export default function TeacherStudentGrades() {
       </Card>
 
       {/* Grades Table */}
-      {selectedClass && selectedSubject ? (
+      {selectedClass && selectedSubject && selectedSubject !== 'no-subject' ? (
         <StudentGradesTable
+          key={refreshKey} // Force re-render when refreshKey changes
           classId={selectedClass}
           subjectId={selectedSubject}
-          semesterId={selectedSemester || undefined}
+          semesterId={selectedSemester === 'all-semesters' ? undefined : selectedSemester}
+          onGradeUpdate={handleGradeUpdate}
         />
       ) : (
         <Card>

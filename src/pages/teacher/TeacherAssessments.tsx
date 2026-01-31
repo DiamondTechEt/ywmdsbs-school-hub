@@ -3,11 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { 
   Plus, 
@@ -22,7 +23,8 @@ import {
   TrendingUp,
   Users,
   Loader2,
-  Power
+  Power,
+  MoreHorizontal
 } from 'lucide-react';
 import { CreateAssessmentDialog } from '@/components/teacher/CreateAssessmentDialog';
 import { GradesManager } from '@/components/teacher/GradesManager';
@@ -44,27 +46,47 @@ interface Assessment {
   assessment_date: string;
   is_published: boolean;
   assessment_type_name: string;
+  assessment_type_id?: string;
   class_name: string;
+  class_id?: string;
   subject_name: string;
+  semester_id?: string;
   total_students?: number;
   graded_students?: number;
   average_score?: number;
 }
 
+interface Semester {
+  id: string;
+  name: string;
+  is_current: boolean;
+}
+
+interface AssessmentType {
+  id: string;
+  name: string;
+  weight_default: number;
+}
+
 export function TeacherAssessments() {
   const [teacherClasses, setTeacherClasses] = useState<TeacherClass[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [assessmentTypes, setAssessmentTypes] = useState<AssessmentType[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterClass, setFilterClass] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedAssessment, setSelectedAssessment] = useState<Assessment | null>(null);
   const [isGradesDialogOpen, setIsGradesDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
   useEffect(() => {
     loadTeacherClasses();
+    loadSemesters();
+    loadAssessmentTypes();
   }, []);
 
   useEffect(() => {
@@ -129,8 +151,9 @@ export function TeacherAssessments() {
         .from('assessments')
         .select(`
           *,
-          assessment_types(name),
+          assessment_types(id, name),
           class_subject_assignments(
+            id,
             class_id,
             classes(id, name),
             subjects(name)
@@ -175,8 +198,11 @@ export function TeacherAssessments() {
             assessment_date: assessment.assessment_date,
             is_published: assessment.is_published,
             assessment_type_name: assessment.assessment_types?.name || 'Unknown',
+            assessment_type_id: assessment.assessment_type_id,
             class_name: assessment.class_subject_assignments?.classes?.name || 'Unknown',
+            class_id: assessment.class_subject_assignments?.class_id,
             subject_name: assessment.class_subject_assignments?.subjects?.name || 'Unknown',
+            semester_id: assessment.semester_id,
             total_students: totalStudents || 0,
             graded_students: gradedStudents || 0,
             average_score: Math.round(averageScore * 10) / 10
@@ -190,6 +216,36 @@ export function TeacherAssessments() {
       toast.error('Failed to load assessments');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSemesters = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('semesters')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setSemesters(data || []);
+    } catch (error) {
+      console.error('Error loading semesters:', error);
+      toast.error('Failed to load semesters');
+    }
+  };
+
+  const loadAssessmentTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('assessment_types')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setAssessmentTypes(data || []);
+    } catch (error) {
+      console.error('Error loading assessment types:', error);
+      toast.error('Failed to load assessment types');
     }
   };
 
@@ -211,6 +267,58 @@ export function TeacherAssessments() {
     } catch (error) {
       console.error('Error deleting assessment:', error);
       toast.error('Failed to delete assessment');
+    }
+  };
+
+  const handleEditAssessment = (assessment: Assessment) => {
+    setSelectedAssessment(assessment);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdateAssessment = async () => {
+    if (!selectedAssessment) return;
+
+    try {
+      setLoading(true);
+
+      // Get current teacher ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const { data: teacherData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!teacherData) throw new Error('Teacher not found');
+
+      // Update assessment directly using the existing class_subject_assignment_id
+      // We don't need to find the assignment since we're not changing the class
+      const { error: updateError } = await supabase
+        .from('assessments')
+        .update({
+          title: selectedAssessment.title,
+          assessment_type_id: selectedAssessment.assessment_type_id || null,
+          max_score: selectedAssessment.max_score,
+          weight: selectedAssessment.weight,
+          assessment_date: selectedAssessment.assessment_date,
+          semester_id: selectedAssessment.semester_id || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedAssessment.id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Assessment updated successfully');
+      setIsEditDialogOpen(false);
+      setSelectedAssessment(null);
+      loadAssessments();
+    } catch (error) {
+      console.error('Error updating assessment:', error);
+      toast.error('Failed to update assessment');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -427,38 +535,44 @@ export function TeacherAssessments() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleTogglePublish(assessment)}
-                            className={assessment.is_published ? 'text-orange-600 hover:text-orange-700' : 'text-green-600 hover:text-green-700'}
-                            title={assessment.is_published ? 'Click to unpublish - students will not see this assessment' : 'Click to publish - students will see this assessment'}
-                          >
-                            <Power className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openViewDialog(assessment)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openGradesDialog(assessment)}
-                          >
-                            <Award className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteAssessment(assessment.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openViewDialog(assessment)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditAssessment(assessment)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit Assessment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openGradesDialog(assessment)}>
+                              <Award className="mr-2 h-4 w-4" />
+                              Manage Grades
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleTogglePublish(assessment)}
+                              className={assessment.is_published ? 'text-orange-600' : 'text-green-600'}
+                            >
+                              <Power className="mr-2 h-4 w-4" />
+                              {assessment.is_published ? 'Unpublish' : 'Publish'}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteAssessment(assessment.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete Assessment
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -478,6 +592,129 @@ export function TeacherAssessments() {
           setIsCreateDialogOpen(false);
         }}
       />
+
+      {/* Edit Assessment Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Assessment</DialogTitle>
+            <DialogDescription>
+              Update assessment details including title, type, semester, and scoring information.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAssessment && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={selectedAssessment.title}
+                  onChange={(e) => setSelectedAssessment(prev => prev ? { ...prev, title: e.target.value } : null)}
+                  placeholder="Enter assessment title"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-class">Class</Label>
+                <Input
+                  id="edit-class"
+                  value={`${selectedAssessment.class_name} - ${selectedAssessment.subject_name}`}
+                  disabled
+                  className="bg-muted"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-semester">Semester</Label>
+                <Select
+                  value={selectedAssessment.semester_id || ''}
+                  onValueChange={(value) => setSelectedAssessment(prev => prev ? { ...prev, semester_id: value } : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select semester" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {semesters.map(semester => (
+                      <SelectItem key={semester.id} value={semester.id}>
+                        {semester.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-type">Assessment Type</Label>
+                <Select
+                  value={selectedAssessment.assessment_type_id || ''}
+                  onValueChange={(value) => {
+                    const selectedType = assessmentTypes.find(t => t.id === value);
+                    setSelectedAssessment(prev => prev ? { 
+                      ...prev, 
+                      assessment_type_id: value,
+                      weight: selectedType?.weight_default || prev.weight
+                    } : null);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assessment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assessmentTypes.map(type => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name} (Default weight: {type.weight_default})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-max_score">Max Score</Label>
+                  <Input
+                    id="edit-max_score"
+                    type="number"
+                    value={selectedAssessment.max_score}
+                    onChange={(e) => setSelectedAssessment(prev => prev ? { ...prev, max_score: Number(e.target.value) } : null)}
+                    min="1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-weight">Weight (%)</Label>
+                  <Input
+                    id="edit-weight"
+                    type="number"
+                    value={selectedAssessment.weight}
+                    onChange={(e) => setSelectedAssessment(prev => prev ? { ...prev, weight: Number(e.target.value) } : null)}
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-date">Assessment Date</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={selectedAssessment.assessment_date}
+                  onChange={(e) => setSelectedAssessment(prev => prev ? { ...prev, assessment_date: e.target.value } : null)}
+                />
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpdateAssessment}>
+                  Update Assessment
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Grades Dialog */}
       <Dialog open={isGradesDialogOpen} onOpenChange={setIsGradesDialogOpen}>

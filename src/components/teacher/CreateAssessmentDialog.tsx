@@ -17,6 +17,12 @@ interface TeacherClass {
   role: string;
 }
 
+interface Semester {
+  id: string;
+  name: string;
+  academic_year_id: string;
+}
+
 interface AssessmentType {
   id: string;
   code: string;
@@ -40,21 +46,36 @@ export function CreateAssessmentDialog({
   const [loading, setLoading] = useState(false);
   const [assessmentTypes, setAssessmentTypes] = useState<AssessmentType[]>([]);
   const [teacherClasses, setTeacherClasses] = useState<TeacherClass[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [formData, setFormData] = useState({
     title: '',
     assessment_type_id: '',
     max_score: 100,
     weight: 10,
     assessment_date: new Date().toISOString().split('T')[0],
-    class_id: selectedClass?.class_id || ''
+    class_id: selectedClass?.class_id || '',
+    semester_id: ''
+  } as {
+    title: string;
+    assessment_type_id: string;
+    max_score: number;
+    weight: number;
+    assessment_date: string;
+    class_id: string;
+    semester_id: string;
   });
 
   React.useEffect(() => {
     if (isOpen) {
       loadAssessmentTypes();
       loadTeacherClasses();
+      loadSemesters();
       if (selectedClass) {
-        setFormData(prev => ({ ...prev, class_id: selectedClass.class_id }));
+        setFormData(prev => ({ 
+          ...prev, 
+          class_id: selectedClass.class_id,
+          semester_id: prev.semester_id || '' // Preserve semester_id
+        }));
       }
     }
   }, [isOpen, selectedClass]);
@@ -74,6 +95,30 @@ export function CreateAssessmentDialog({
       toast({
         title: "Error",
         description: "Failed to load assessment types",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadSemesters = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('semesters')
+        .select('*')
+        .order('start_date', { ascending: false });
+
+      if (error) throw error;
+      setSemesters(data || []);
+      
+      // Auto-select current semester if available
+      if (data && data.length > 0) {
+        setFormData(prev => ({ ...prev, semester_id: data[0].id }));
+      }
+    } catch (error) {
+      console.error('Error loading semesters:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load semesters",
         variant: "destructive"
       });
     }
@@ -201,7 +246,7 @@ export function CreateAssessmentDialog({
           max_score: formData.max_score,
           weight: formData.weight,
           assessment_date: formData.assessment_date,
-          semester_id: (await supabase.from('semesters').select('id').order('start_date', { ascending: false }).limit(1).single()).data?.id,
+          semester_id: formData.semester_id,
           created_by_teacher_id: teacherData.id,
           is_published: false
         });
@@ -220,7 +265,8 @@ export function CreateAssessmentDialog({
         max_score: 100,
         weight: 10,
         assessment_date: new Date().toISOString().split('T')[0],
-        class_id: ''
+        class_id: '',
+        semester_id: ''
       });
 
       onClose();
@@ -289,6 +335,25 @@ export function CreateAssessmentDialog({
                 {teacherClasses.map(cls => (
                   <SelectItem key={cls.id} value={cls.class_id}>
                     {cls.class_name} {cls.subject_name && `(${cls.subject_name})`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="semester">Semester *</Label>
+            <Select
+              value={formData.semester_id}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, semester_id: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select semester" />
+              </SelectTrigger>
+              <SelectContent>
+                {semesters.map(semester => (
+                  <SelectItem key={semester.id} value={semester.id}>
+                    {semester.name}
                   </SelectItem>
                 ))}
               </SelectContent>

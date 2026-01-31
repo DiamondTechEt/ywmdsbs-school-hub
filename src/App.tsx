@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { BanChecker } from "@/components/BanChecker";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import Auth from "./pages/Auth";
@@ -26,7 +27,6 @@ import AuditLogs from "./pages/AuditLogs";
 import TeacherDashboard from "./pages/teacher/TeacherDashboard";
 import MyClasses from "./pages/MyClasses";
 import TeacherStudents from "./pages/TeacherStudents";
-import StudentAssessmentViewer from "./pages/StudentAssessmentViewer";
 import { TeacherAssessments } from "./pages/teacher/TeacherAssessments";
 import { TeacherGrades } from "./pages/teacher/TeacherGrades";
 import { TeacherAnalytics } from "./pages/teacher/TeacherAnalytics";
@@ -37,6 +37,8 @@ import MyTranscript from "./pages/MyTranscript";
 import MyPerformance from "./pages/MyPerformance";
 import ProfileSettings from "./pages/ProfileSettings";
 import ParentPortal from "./pages/ParentPortal";
+import { BanManagement } from "./components/admin/BanManagement";
+import UserManagementPage from "./pages/admin/UserManagementPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,13 +50,14 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/landing" element={<LandingPage />} />
-            <Route element={<AppLayout />}>
-              {/* Shared */}
-              <Route path="/dashboard" element={<Dashboard />} />
+          <BanChecker>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/landing" element={<LandingPage />} />
+              <Route element={<AppLayout />}>
+                {/* Shared */}
+                <Route path="/dashboard" element={<Dashboard />} />
               
               {/* Super Admin Routes */}
               <Route 
@@ -110,6 +113,30 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['super_admin']}>
                     <AuditLogs />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/ban-management" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin', 'teacher']}>
+                    <BanManagement userRole="super_admin" />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/users" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <UserManagementPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/class-teacher" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <ClassTeacherAdmin />
                   </ProtectedRoute>
                 } 
               />
@@ -192,14 +219,6 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
                     <TeacherStudents />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/student-assessments" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <StudentAssessmentViewer />
                   </ProtectedRoute>
                 } 
               />
@@ -290,6 +309,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </BanChecker>
         </BrowserRouter>
       </TooltipProvider>
     </AuthProvider>

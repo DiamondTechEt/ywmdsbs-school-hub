@@ -1,0 +1,16 @@
+Browser Cache Issues Fixed - Please clear browser cache and restart dev server
+
+To clear browser cache:
+1. Open Developer Tools (F12)
+2. Right-click on refresh button
+3. Select "Empty Cache and Hard Reload"
+4. Or use Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)
+
+To restart dev server:
+1. Stop the current dev server (Ctrl+C)
+2. Run: npm run dev
+
+This should resolve:
+- Old Sidebar.tsx cache issues
+- UserManagement query syntax errors
+- Admin API permission issues

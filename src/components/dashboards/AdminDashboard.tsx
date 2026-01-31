@@ -134,6 +134,9 @@ export function AdminDashboard() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
         <p className="text-muted-foreground">Welcome to YWMDSBS School Management System</p>
+        <div className="mt-4 text-sm text-muted-foreground">
+          Navigate to different sections using the sidebar menu
+        </div>
       </div>
 
       {/* Stats Cards */}

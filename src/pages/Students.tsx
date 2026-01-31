@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Search, Edit, Trash2, GraduationCap, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, GraduationCap, Loader2, Ban, Unlock, Shield, Eye } from 'lucide-react';
 import { z } from 'zod';
 import { logStudentAction, logBulkOperation } from '@/lib/audit-logger';
 import { notifyStudentGrade } from '@/lib/notifications';
@@ -33,7 +33,14 @@ export default function Students() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
+  const [isUnbanDialogOpen, setIsUnbanDialogOpen] = useState(false);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<any>(null);
+  const [selectedStudent, setSelectedStudent] = useState<any>(null);
+  const [detailsStudent, setDetailsStudent] = useState<any>(null);
+  const [banReason, setBanReason] = useState('');
+  const [banNotes, setBanNotes] = useState('');
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -55,7 +62,8 @@ export default function Students() {
         .from('students')
         .select(`
           *,
-          current_class:classes(name, grade_level)
+          current_class:classes(name, grade_level),
+          banned_by_teacher:teachers!banned_by(first_name, last_name)
         `)
         .order('last_name');
 
@@ -177,6 +185,70 @@ export default function Students() {
     },
   });
 
+  const banStudent = useMutation({
+    mutationFn: async (studentId: string) => {
+      // Get current teacher/admin ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: adminData } = await supabase
+        .from('teachers')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      const { error } = await supabase
+        .from('students')
+        .update({
+          is_banned: true,
+          banned_at: new Date().toISOString(),
+          banned_by: adminData?.id,
+          ban_reason: banReason.trim(),
+          ban_notes: banNotes.trim() || null
+        } as any)
+        .eq('id', studentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Student banned successfully');
+      setIsBanDialogOpen(false);
+      setSelectedStudent(null);
+      setBanReason('');
+      setBanNotes('');
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to ban student');
+    },
+  });
+
+  const unbanStudent = useMutation({
+    mutationFn: async (studentId: string) => {
+      const { error } = await supabase
+        .from('students')
+        .update({
+          is_banned: false,
+          banned_at: null,
+          banned_by: null,
+          ban_reason: null,
+          ban_notes: null
+        } as any)
+        .eq('id', studentId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('Student unbanned successfully');
+      setIsUnbanDialogOpen(false);
+      setSelectedStudent(null);
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to unban student');
+    },
+  });
+
   const resetForm = () => {
     setFormData({
       email: '',
@@ -226,6 +298,36 @@ export default function Students() {
       current_class_id: student.current_class_id || '',
     });
     setIsDialogOpen(true);
+  };
+
+  const openBanDialog = (student: any) => {
+    setSelectedStudent(student);
+    setBanReason('');
+    setBanNotes('');
+    setIsBanDialogOpen(true);
+  };
+
+  const openUnbanDialog = (student: any) => {
+    setSelectedStudent(student);
+    setIsUnbanDialogOpen(true);
+  };
+
+  const handleBanStudent = () => {
+    if (!selectedStudent || !banReason.trim()) {
+      toast.error('Please provide a ban reason');
+      return;
+    }
+    banStudent.mutate(selectedStudent.id);
+  };
+
+  const handleUnbanStudent = () => {
+    if (!selectedStudent) return;
+    unbanStudent.mutate(selectedStudent.id);
+  };
+
+  const openDetailsDialog = (student: any) => {
+    setDetailsStudent(student);
+    setIsDetailsDialogOpen(true);
   };
 
   return (
@@ -444,6 +546,7 @@ export default function Students() {
                     <TableHead>Gender</TableHead>
                     <TableHead>Class</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Ban Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -469,25 +572,72 @@ export default function Students() {
                           {student.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        {student.is_banned ? (
+                          <div className="space-y-1">
+                            <Badge variant="destructive">Banned</Badge>
+                            {student.banned_at && (
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(student.banned_at).toLocaleDateString()}
+                              </div>
+                            )}
+                            {student.banned_by_teacher && (
+                              <div className="text-xs text-muted-foreground">
+                                By: {student.banned_by_teacher.first_name} {student.banned_by_teacher.last_name}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Badge variant="default">Active</Badge>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(student)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (confirm('Are you sure you want to deactivate this student?')) {
-                              deleteStudent.mutate(student.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openDetailsDialog(student)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditDialog(student)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {student.is_banned ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openUnbanDialog(student)}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <Unlock className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openBanDialog(student)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Ban className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (confirm('Are you sure you want to deactivate this student?')) {
+                                deleteStudent.mutate(student.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -502,6 +652,226 @@ export default function Students() {
           )}
         </CardContent>
       </Card>
+
+      {/* Ban Dialog */}
+      <Dialog open={isBanDialogOpen} onOpenChange={setIsBanDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Ban className="h-5 w-5" />
+              Ban Student
+            </DialogTitle>
+            <DialogDescription>
+              Ban {selectedStudent?.first_name} {selectedStudent?.last_name} from accessing the system
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Ban Reason *</Label>
+              <Select value={banReason} onValueChange={setBanReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Academic misconduct">Academic misconduct</SelectItem>
+                  <SelectItem value="Code of conduct violation">Code of conduct violation</SelectItem>
+                  <SelectItem value="Security breach">Security breach</SelectItem>
+                  <SelectItem value="Inappropriate behavior">Inappropriate behavior</SelectItem>
+                  <SelectItem value="Policy violation">Policy violation</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Additional Notes</Label>
+              <textarea
+                className="w-full p-2 border rounded-md"
+                rows={3}
+                value={banNotes}
+                onChange={(e) => setBanNotes(e.target.value)}
+                placeholder="Provide any additional details about this ban..."
+              />
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsBanDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={handleBanStudent}>
+                Confirm Ban
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unban Dialog */}
+      <Dialog open={isUnbanDialogOpen} onOpenChange={setIsUnbanDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-green-600">
+              <Unlock className="h-5 w-5" />
+              Unban Student
+            </DialogTitle>
+            <DialogDescription>
+              Restore access for {selectedStudent?.first_name} {selectedStudent?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-700">
+                This action will immediately restore the student's access to the system.
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsUnbanDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUnbanStudent}>
+                Confirm Unban
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Student Details Dialog */}
+      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5" />
+              Student Details
+            </DialogTitle>
+            <DialogDescription>
+              Complete information for {detailsStudent?.first_name} {detailsStudent?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          {detailsStudent && (
+            <div className="space-y-6">
+              {/* Personal Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Personal Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Student ID</Label>
+                    <p className="font-mono">{detailsStudent.student_id_code}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Full Name</Label>
+                    <p>{detailsStudent.first_name} {detailsStudent.middle_name} {detailsStudent.last_name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Gender</Label>
+                    <p className="capitalize">{detailsStudent.gender}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
+                    <p>{new Date(detailsStudent.date_of_birth).toLocaleDateString()}</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Academic Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Academic Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Enrollment Year</Label>
+                    <p>{detailsStudent.enrollment_year}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Current Class</Label>
+                    <p>
+                      {detailsStudent.current_class ? (
+                        <Badge variant="secondary">
+                          {detailsStudent.current_class.name} (Grade {detailsStudent.current_class.grade_level})
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">Unassigned</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Boarding Status</Label>
+                    <Badge variant={detailsStudent.boarding_status === 'boarding' ? 'default' : 'secondary'}>
+                      {detailsStudent.boarding_status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Account Status</Label>
+                    <Badge variant={detailsStudent.is_active ? 'default' : 'destructive'}>
+                      {detailsStudent.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Ban Information */}
+              {detailsStudent.is_banned && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg text-red-600">Ban Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Ban Status</Label>
+                        <Badge variant="destructive">Banned</Badge>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Banned Date</Label>
+                        <p>{new Date(detailsStudent.banned_at).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    {detailsStudent.ban_reason && (
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Ban Reason</Label>
+                        <p className="text-red-600">{detailsStudent.ban_reason}</p>
+                      </div>
+                    )}
+                    {detailsStudent.ban_notes && (
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Additional Notes</Label>
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap">{detailsStudent.ban_notes}</p>
+                      </div>
+                    )}
+                    {detailsStudent.banned_by_teacher && (
+                      <div>
+                        <Label className="text-sm font-medium text-muted-foreground">Banned By</Label>
+                        <p>{detailsStudent.banned_by_teacher.first_name} {detailsStudent.banned_by_teacher.last_name}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* System Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">System Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Created At</Label>
+                    <p>{new Date(detailsStudent.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                    <p>{new Date(detailsStudent.updated_at).toLocaleDateString()}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

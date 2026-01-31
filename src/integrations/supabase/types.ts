@@ -156,37 +156,49 @@ export type Database = {
           action: string
           details: Json | null
           entity_id: string | null
+          entity_name: string | null
           entity_type: string
           id: string
           ip_address: string | null
           role: string | null
           success: boolean
           timestamp: string
+          user_agent: string | null
+          user_email: string | null
           user_id: string | null
+          user_name: string | null
         }
         Insert: {
           action: string
           details?: Json | null
           entity_id?: string | null
+          entity_name?: string | null
           entity_type: string
           id?: string
           ip_address?: string | null
           role?: string | null
           success?: boolean
           timestamp?: string
+          user_agent?: string | null
+          user_email?: string | null
           user_id?: string | null
+          user_name?: string | null
         }
         Update: {
           action?: string
           details?: Json | null
           entity_id?: string | null
+          entity_name?: string | null
           entity_type?: string
           id?: string
           ip_address?: string | null
           role?: string | null
           success?: boolean
           timestamp?: string
+          user_agent?: string | null
+          user_email?: string | null
           user_id?: string | null
+          user_name?: string | null
         }
         Relationships: []
       }
@@ -571,6 +583,66 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          action_text: string | null
+          action_url: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_name: string | null
+          entity_type: string | null
+          expires_at: string | null
+          id: string
+          is_deleted: boolean | null
+          is_read: boolean | null
+          message: string
+          metadata: Json | null
+          priority: number | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string | null
+        }
+        Insert: {
+          action_text?: string | null
+          action_url?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          is_read?: boolean | null
+          message: string
+          metadata?: Json | null
+          priority?: number | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id?: string | null
+        }
+        Update: {
+          action_text?: string | null
+          action_url?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_name?: string | null
+          entity_type?: string | null
+          expires_at?: string | null
+          id?: string
+          is_deleted?: boolean | null
+          is_read?: boolean | null
+          message?: string
+          metadata?: Json | null
+          priority?: number | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       parent_students: {
         Row: {
           can_view_attendance: boolean | null
@@ -935,6 +1007,23 @@ export type Database = {
         Args: { _class_id: string; _role?: string; _teacher_id: string }
         Returns: string
       }
+      create_notification: {
+        Args: {
+          p_action_text?: string
+          p_action_url?: string
+          p_entity_id?: string
+          p_entity_name?: string
+          p_entity_type?: string
+          p_expires_hours?: number
+          p_message: string
+          p_metadata?: Json
+          p_priority?: number
+          p_title: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       create_student_with_user: {
         Args: {
           p_boarding_status?: string
@@ -950,6 +1039,10 @@ export type Database = {
           p_student_id_code: string
         }
         Returns: string
+      }
+      delete_notification: {
+        Args: { p_notification_id: string }
+        Returns: boolean
       }
       get_class_teachers: {
         Args: { _class_id: string }
@@ -997,6 +1090,21 @@ export type Database = {
         Returns: boolean
       }
       is_super_admin: { Args: never; Returns: boolean }
+      log_audit_event: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_entity_id?: string
+          p_entity_type: string
+          p_success?: boolean
+        }
+        Returns: undefined
+      }
+      mark_all_notifications_read: { Args: never; Returns: number }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: boolean
+      }
       populate_user_names: {
         Args: never
         Returns: {

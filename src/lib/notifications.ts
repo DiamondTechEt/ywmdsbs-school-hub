@@ -38,41 +38,31 @@ export interface NotificationData {
 }
 
 /**
- * Create a notification for a user
+ * Create a notification for a user using RPC function
  */
 export async function createNotification(data: NotificationData): Promise<string | null> {
   try {
-    // Calculate expiration time if provided
-    let expiresAt = null;
-    if (data.expiresHours) {
-      expiresAt = new Date(Date.now() + data.expiresHours * 60 * 60 * 1000).toISOString();
-    }
-
-    const { data: result, error } = await supabase
-      .from('notifications')
-      .insert({
-        user_id: data.userId,
-        title: data.title,
-        message: data.message,
-        type: data.type || 'INFO',
-        entity_type: data.entityType || null,
-        entity_id: data.entityId || null,
-        entity_name: data.entityName || null,
-        priority: data.priority || 1,
-        action_url: data.actionUrl || null,
-        action_text: data.actionText || null,
-        metadata: data.metadata || null,
-        expires_at: expiresAt
-      })
-      .select('id')
-      .single();
+    const { data: result, error } = await supabase.rpc('create_notification', {
+      p_user_id: data.userId,
+      p_title: data.title,
+      p_message: data.message,
+      p_type: data.type || 'INFO',
+      p_entity_type: data.entityType || null,
+      p_entity_id: data.entityId || null,
+      p_entity_name: data.entityName || null,
+      p_priority: data.priority || 1,
+      p_action_url: data.actionUrl || null,
+      p_action_text: data.actionText || null,
+      p_metadata: data.metadata || null,
+      p_expires_hours: data.expiresHours || null
+    });
 
     if (error) {
       console.error('Failed to create notification:', error);
       return null;
     }
 
-    return result?.id || null;
+    return result as string;
   } catch (error) {
     console.error('Error creating notification:', error);
     return null;
@@ -87,6 +77,7 @@ export async function getUserNotifications(limit: number = 50, offset: number = 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return [];
 
+    // Use direct table query with type casting
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
@@ -101,7 +92,7 @@ export async function getUserNotifications(limit: number = 50, offset: number = 
       return [];
     }
 
-    return data as Notification[] || [];
+    return (data || []) as unknown as Notification[];
   } catch (error) {
     console.error('Error fetching notifications:', error);
     return [];
@@ -136,29 +127,20 @@ export async function getUnreadNotificationCount(): Promise<number> {
 }
 
 /**
- * Mark a notification as read
+ * Mark a notification as read using RPC function
  */
 export async function markNotificationAsRead(notificationId: string): Promise<boolean> {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return false;
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ 
-        is_read: true, 
-        read_at: new Date().toISOString() 
-      })
-      .eq('id', notificationId)
-      .eq('user_id', userData.user.id)
-      .eq('is_read', false);
+    const { data, error } = await supabase.rpc('mark_notification_read', {
+      p_notification_id: notificationId
+    });
 
     if (error) {
       console.error('Failed to mark notification as read:', error);
       return false;
     }
 
-    return true;
+    return data as boolean;
   } catch (error) {
     console.error('Error marking notification as read:', error);
     return false;
@@ -166,30 +148,18 @@ export async function markNotificationAsRead(notificationId: string): Promise<bo
 }
 
 /**
- * Mark all notifications as read for the current user
+ * Mark all notifications as read for the current user using RPC function
  */
 export async function markAllNotificationsAsRead(): Promise<number> {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return 0;
-
-    const { data, error } = await supabase
-      .from('notifications')
-      .update({ 
-        is_read: true, 
-        read_at: new Date().toISOString() 
-      })
-      .eq('user_id', userData.user.id)
-      .eq('is_read', false)
-      .eq('is_deleted', false);
+    const { data, error } = await supabase.rpc('mark_all_notifications_read');
 
     if (error) {
       console.error('Failed to mark all notifications as read:', error);
       return 0;
     }
 
-    // Return the count of updated rows
-    return Array.isArray(data) ? data.length : 0;
+    return data as number;
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
     return 0;
@@ -197,26 +167,20 @@ export async function markAllNotificationsAsRead(): Promise<number> {
 }
 
 /**
- * Delete a notification
+ * Delete a notification using RPC function
  */
 export async function deleteNotification(notificationId: string): Promise<boolean> {
   try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return false;
-
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_deleted: true })
-      .eq('id', notificationId)
-      .eq('user_id', userData.user.id)
-      .eq('is_deleted', false);
+    const { data, error } = await supabase.rpc('delete_notification', {
+      p_notification_id: notificationId
+    });
 
     if (error) {
       console.error('Failed to delete notification:', error);
       return false;
     }
 
-    return true;
+    return data as boolean;
   } catch (error) {
     console.error('Error deleting notification:', error);
     return false;
@@ -348,4 +312,40 @@ export async function notifyUser(userId: string, title: string, message: string,
     type,
     ...options
   });
+}
+
+/**
+ * Notify parents when student grades are published
+ */
+export async function notifyParentsGradePublished(studentId: string, studentName: string, subject: string, letterGrade: string): Promise<void> {
+  try {
+    // Get parents linked to this student
+    const { data: parentLinks } = await supabase
+      .from('parent_students')
+      .select('parent_id, parents(user_id, first_name, last_name)')
+      .eq('student_id', studentId)
+      .eq('can_view_grades', true);
+
+    if (parentLinks && parentLinks.length > 0) {
+      for (const link of parentLinks) {
+        const parent = link.parents as any;
+        if (parent?.user_id) {
+          await createNotification({
+            userId: parent.user_id,
+            title: 'New Grade Published',
+            message: `${studentName} received a grade of ${letterGrade} in ${subject}`,
+            type: 'GRADE',
+            entityType: 'GRADE',
+            entityName: `${studentName} - ${subject}`,
+            priority: 3,
+            actionUrl: '/parent-portal',
+            actionText: 'View Grades',
+            metadata: { studentId, studentName, subject, letterGrade }
+          });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error notifying parents:', error);
+  }
 }

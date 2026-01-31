@@ -8,9 +8,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
-import { Search, Ban, Unlock, AlertTriangle, User, Shield } from 'lucide-react';
+import { 
+  Key, 
+  Mail, 
+  Users, 
+  Search, 
+  RefreshCw, 
+  MoreHorizontal,
+  Ban,
+  BanIcon,
+  UserCheck,
+  Eye,
+  Calendar,
+  MessageSquare,
+  Unlock, 
+  AlertTriangle, 
+  User as UserIcon, 
+  Shield 
+} from 'lucide-react';
 
 interface User {
   id: string;
@@ -46,6 +64,7 @@ export function BanManagement({ userRole }: BanManagementProps) {
   // Dialog states
   const [isBanDialogOpen, setIsBanDialogOpen] = useState(false);
   const [isUnbanDialogOpen, setIsUnbanDialogOpen] = useState(false);
+  const [isBanDetailsDialogOpen, setIsBanDetailsDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   
   // Form states
@@ -71,6 +90,11 @@ export function BanManagement({ userRole }: BanManagementProps) {
             last_name,
             student_id_code,
             is_active,
+            is_banned,
+            banned_at,
+            banned_by,
+            ban_reason,
+            ban_notes,
             created_at
           `);
       } else if (filterRole === 'teacher') {
@@ -83,6 +107,11 @@ export function BanManagement({ userRole }: BanManagementProps) {
             last_name,
             teacher_code,
             is_active,
+            is_banned,
+            banned_at,
+            banned_by,
+            ban_reason,
+            ban_notes,
             created_at
           `);
       }
@@ -110,13 +139,13 @@ export function BanManagement({ userRole }: BanManagementProps) {
         email: emailMap.get(user.user_id) || 'No email',
         student_id_code: user.student_id_code,
         teacher_code: user.teacher_code,
-        is_banned: false, // Default to false since ban fields may not exist
-        banned_at: null,
-        banned_by: null,
-        ban_reason: null,
-        ban_notes: null,
+        is_banned: user.is_banned || false,
+        banned_at: user.banned_at,
+        banned_by: user.banned_by,
+        ban_reason: user.ban_reason,
+        ban_notes: user.ban_notes,
         role: filterRole === 'teacher' || (filterRole === 'all' && user.teacher_code) ? 'teacher' : 'student',
-        banned_by_teacher: null
+        banned_by_teacher: user.banned_by_teacher
       }));
 
       if (filterRole === 'all') {
@@ -130,6 +159,11 @@ export function BanManagement({ userRole }: BanManagementProps) {
             last_name,
             teacher_code,
             is_active,
+            is_banned,
+            banned_at,
+            banned_by,
+            ban_reason,
+            ban_notes,
             created_at
           `);
 
@@ -152,13 +186,13 @@ export function BanManagement({ userRole }: BanManagementProps) {
             last_name: teacher.last_name,
             email: teacherEmailMap.get(teacher.user_id) || 'No email',
             teacher_code: teacher.teacher_code,
-            is_banned: false, // Teachers can't be banned in current schema
-            banned_at: null,
-            banned_by: null,
-            ban_reason: null,
-            ban_notes: null,
+            is_banned: teacher.is_banned || false,
+            banned_at: teacher.banned_at,
+            banned_by: teacher.banned_by,
+            ban_reason: teacher.ban_reason,
+            ban_notes: teacher.ban_notes,
             role: 'teacher',
-            banned_by_teacher: null
+            banned_by_teacher: teacher.banned_by_teacher
           }));
           setUsers([...transformedUsers, ...transformedTeachers]);
         } else {
@@ -187,9 +221,15 @@ export function BanManagement({ userRole }: BanManagementProps) {
     setIsUnbanDialogOpen(true);
   };
 
+  const openBanDetailsDialog = (user: User) => {
+    setSelectedUser(user);
+    setIsBanDetailsDialogOpen(true);
+  };
+
   const closeDialogs = () => {
     setIsBanDialogOpen(false);
     setIsUnbanDialogOpen(false);
+    setIsBanDetailsDialogOpen(false);
     setSelectedUser(null);
     setBanReason('');
     setBanNotes('');
@@ -198,12 +238,6 @@ export function BanManagement({ userRole }: BanManagementProps) {
   const banUser = async () => {
     try {
       if (!selectedUser) return;
-
-      // Only students can be banned
-      if (selectedUser.role === 'teacher') {
-        toast.error('Teachers cannot be banned through this system');
-        return;
-      }
 
       if (!banReason.trim()) {
         toast.error('Please provide a ban reason');
@@ -247,12 +281,6 @@ export function BanManagement({ userRole }: BanManagementProps) {
   const unbanUser = async () => {
     try {
       if (!selectedUser) return;
-
-      // Only students can be unbanned
-      if (selectedUser.role === 'teacher') {
-        toast.error('Teachers cannot be unbanned through this system');
-        return;
-      }
 
       const tableName = selectedUser.student_id_code ? 'students' : 'teachers';
       
@@ -381,7 +409,7 @@ export function BanManagement({ userRole }: BanManagementProps) {
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
+                        <UserIcon className="h-4 w-4" />
                         <span className="font-medium">
                           {user.first_name} {user.last_name}
                         </span>
@@ -418,27 +446,46 @@ export function BanManagement({ userRole }: BanManagementProps) {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        {user.is_banned ? (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openUnbanDialog(user)}
-                          >
-                            <Unlock className="h-4 w-4 mr-2" />
-                            Unban
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => openBanDialog(user)}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {user.is_banned ? (
+                            <>
+                              <DropdownMenuItem onClick={() => openBanDetailsDialog(user)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Ban Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openUnbanDialog(user)}>
+                                <UserCheck className="h-4 w-4 mr-2" />
+                                Unban User
+                              </DropdownMenuItem>
+                            </>
+                          ) : (
+                            <>
+                              <DropdownMenuItem onClick={() => openBanDialog(user)} className="text-red-600">
+                                <Ban className="h-4 w-4 mr-2" />
+                                Ban User
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openBanDetailsDialog(user)}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View User Details
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => navigator.clipboard.writeText(user.email || '')}
+                            className="text-blue-600"
                           >
-                            <Ban className="h-4 w-4 mr-2" />
-                            Ban
-                          </Button>
-                        )}
-                      </div>
+                            <Mail className="h-4 w-4 mr-2" />
+                            Copy Email
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -534,6 +581,87 @@ export function BanManagement({ userRole }: BanManagementProps) {
               </Button>
               <Button onClick={unbanUser}>
                 Confirm Unban
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Ban Details Dialog */}
+      <Dialog open={isBanDetailsDialogOpen} onOpenChange={setIsBanDetailsDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              {selectedUser?.is_banned ? 'Ban Details' : 'User Details'}
+            </DialogTitle>
+            <DialogDescription>
+              Information for {selectedUser?.first_name} {selectedUser?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Name</Label>
+                <p className="font-medium">{selectedUser?.first_name} {selectedUser?.last_name}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Role</Label>
+                <Badge variant={selectedUser?.role === 'student' ? 'secondary' : 'default'}>
+                  {selectedUser?.role === 'student' ? 'Student' : 'Teacher'}
+                </Badge>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">ID</Label>
+                <p className="font-mono text-sm">{selectedUser?.student_id_code || selectedUser?.teacher_code}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-500">Status</Label>
+                <Badge variant={selectedUser?.is_banned ? 'destructive' : 'default'}>
+                  {selectedUser?.is_banned ? 'Banned' : 'Active'}
+                </Badge>
+              </div>
+            </div>
+            
+            <div>
+              <Label className="text-sm font-medium text-gray-500">Email</Label>
+              <p className="font-medium">{selectedUser?.email}</p>
+            </div>
+
+            {selectedUser?.is_banned && (
+              <>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <h4 className="font-medium text-red-800 mb-2">Ban Information</h4>
+                  <div className="space-y-2">
+                    {selectedUser?.ban_reason && (
+                      <div>
+                        <Label className="text-sm font-medium text-red-600">Reason</Label>
+                        <p className="text-red-700">{selectedUser.ban_reason}</p>
+                      </div>
+                    )}
+                    {selectedUser?.ban_notes && (
+                      <div>
+                        <Label className="text-sm font-medium text-red-600">Notes</Label>
+                        <p className="text-red-700">{selectedUser.ban_notes}</p>
+                      </div>
+                    )}
+                    {selectedUser?.banned_at && (
+                      <div>
+                        <Label className="text-sm font-medium text-red-600">Banned On</Label>
+                        <p className="text-red-700">
+                          {new Date(selectedUser.banned_at).toLocaleDateString()} at {' '}
+                          {new Date(selectedUser.banned_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+            
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={closeDialogs}>
+                Close
               </Button>
             </div>
           </div>

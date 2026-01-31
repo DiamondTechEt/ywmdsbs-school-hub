@@ -12,7 +12,7 @@ interface GradePublishedRequest {
   student_ids?: string[];
 }
 
-interface StudentWithGrade {
+interface NotificationResult {
   student_id: string;
   student_name: string;
   student_email: string | null;
@@ -64,8 +64,10 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error('Assessment not found');
     }
 
-    const subjectName = assessmentData.class_subject_assignments?.subjects?.name || 'Unknown Subject';
-    const className = assessmentData.class_subject_assignments?.classes?.name || 'Unknown Class';
+    // Handle the nested data - class_subject_assignments is an object, not array for single()
+    const csa = assessmentData.class_subject_assignments as any;
+    const subjectName = csa?.subjects?.name || 'Unknown Subject';
+    const className = csa?.classes?.name || 'Unknown Class';
 
     // Get grades for this assessment
     let gradesQuery = supabase
@@ -94,7 +96,7 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error(`Failed to fetch grades: ${gradesError.message}`);
     }
 
-    const notifications: StudentWithGrade[] = [];
+    const notifications: NotificationResult[] = [];
 
     for (const grade of gradesData || []) {
       const student = grade.students as any;

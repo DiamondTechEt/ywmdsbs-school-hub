@@ -31,17 +31,17 @@ export async function sendWelcomeNotification(userId: string) {
 /**
  * Notify student about a new grade
  */
-export async function notifyStudentGrade(studentId: string, studentName: string, grade: string, subject: string, assessmentName?: string) {
+export async function notifyStudentGrade(studentUserId: string, grade: string, subject: string, assessmentName?: string) {
   try {
     await createNotification({
-      userId: studentId,
+      userId: studentUserId,
       title: 'New Grade Posted',
       message: `You received a grade of ${grade} in ${subject}${assessmentName ? ` for ${assessmentName}` : ''}`,
       type: 'GRADE',
       entityType: 'GRADE',
       entityName: `${subject} - ${grade}`,
       priority: 3,
-      actionUrl: '/grades',
+      actionUrl: '/my-grades',
       actionText: 'View Grades',
       metadata: { grade, subject, assessment: assessmentName }
     });
@@ -53,17 +53,17 @@ export async function notifyStudentGrade(studentId: string, studentName: string,
 /**
  * Notify student about a new assessment
  */
-export async function notifyStudentAssessment(studentId: string, studentName: string, assessmentTitle: string, dueDate: string) {
+export async function notifyStudentAssessment(studentUserId: string, assessmentTitle: string, dueDate: string) {
   try {
     await createNotification({
-      userId: studentId,
+      userId: studentUserId,
       title: 'New Assessment',
       message: `New assessment "${assessmentTitle}" is due on ${dueDate}`,
       type: 'ASSESSMENT',
       entityType: 'ASSESSMENT',
       entityName: assessmentTitle,
       priority: 2,
-      actionUrl: '/assessments',
+      actionUrl: '/student-assessments',
       actionText: 'View Assessment',
       metadata: { assessmentTitle, dueDate }
     });

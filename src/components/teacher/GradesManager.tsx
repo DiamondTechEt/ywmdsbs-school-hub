@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import { Edit, Save, Users, Calendar, BookOpen, CheckCircle, AlertCircle, Search, Filter, ArrowUpDown, Loader2 } from 'lucide-react';
+import { Edit, Save, Users, Calendar, BookOpen, CheckCircle, AlertCircle, Search, Filter, ArrowUpDown, Loader2, Bell } from 'lucide-react';
+import { notifyGradesPublished } from '@/lib/grade-notifications';
+import { logGradeAction } from '@/lib/audit-logger';
 
 interface Assessment {
   id: string;
@@ -482,7 +484,7 @@ export function GradesManager({ assessment, isOpen, onClose, onSuccess }: Grades
   };
 
   const handlePublishGrades = async () => {
-    if (!confirm('Are you sure you want to publish these grades? Students will be able to see them.')) {
+    if (!confirm('Are you sure you want to publish these grades? Students and parents will be notified.')) {
       return;
     }
 
@@ -494,9 +496,20 @@ export function GradesManager({ assessment, isOpen, onClose, onSuccess }: Grades
 
       if (error) throw error;
 
+      // Log the publish action
+      await logGradeAction('PUBLISH', assessment.id, {
+        assessment_title: assessment.title,
+        grades_count: grades.length
+      });
+
+      // Send notifications to students and parents
+      const notificationResult = await notifyGradesPublished(assessment.id);
+      
       toast({
         title: "Success",
-        description: "Grades published successfully!"
+        description: notificationResult.success 
+          ? `Grades published and ${notificationResult.notificationCount || 0} notifications sent!`
+          : "Grades published successfully!"
       });
 
       await loadGrades();

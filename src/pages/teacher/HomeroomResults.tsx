@@ -71,13 +71,20 @@ export default function HomeroomResults() {
 
       if (!teacherData) return;
 
-      // Get classes where this teacher is the homeroom teacher
+      // Get classes where this teacher is homeroom teacher
       const { data: classesData, error } = await supabase
         .from('classes')
         .select('id, name, grade_level')
-        .eq('homeroom_teacher_id', teacherData.id);
+        .eq('homeroom_teacher_id', teacherData.id)
+        .order('grade_level')
+        .order('name');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading homeroom classes:', error);
+        throw error;
+      }
+      
+      console.log('Homeroom classes loaded:', classesData);
       setHomeroomClasses(classesData || []);
 
       if (classesData && classesData.length > 0) {
@@ -85,6 +92,7 @@ export default function HomeroomResults() {
       }
     } catch (error) {
       console.error('Error loading homeroom classes:', error);
+      toast.error('Failed to load homeroom classes');
     }
   };
 
@@ -108,6 +116,7 @@ export default function HomeroomResults() {
   const loadResults = async () => {
     try {
       setLoading(true);
+      console.log('Loading results for class:', selectedClass, 'semester:', selectedSemester);
 
       // 1. Get all subjects assigned to this class (from ALL teachers)
       const { data: csaData, error: csaError } = await supabase
@@ -120,7 +129,19 @@ export default function HomeroomResults() {
         .eq('class_id', selectedClass)
         .eq('is_active', true);
 
-      if (csaError) throw csaError;
+      if (csaError) {
+        console.error('CSA Error:', csaError);
+        throw csaError;
+      }
+
+      console.log('CSA Data loaded:', csaData);
+
+      if (!csaData || csaData.length === 0) {
+        console.log('No subject assignments found for this class');
+        setSubjects([]);
+        setStudentResults([]);
+        return;
+      }
 
       const uniqueSubjects = Array.from(
         new Map((csaData || []).map(csa => [csa.subject_id, {
@@ -141,7 +162,12 @@ export default function HomeroomResults() {
         .eq('semester_id', selectedSemester)
         .eq('is_published', true);
 
-      if (assessmentsError) throw assessmentsError;
+      if (assessmentsError) {
+        console.error('Assessments Error:', assessmentsError);
+        throw assessmentsError;
+      }
+
+      console.log('Assessments loaded:', assessmentsData);
 
       const assessmentIds = (assessmentsData || []).map(a => a.id);
 
@@ -154,7 +180,18 @@ export default function HomeroomResults() {
         .eq('class_id', selectedClass)
         .eq('is_active', true);
 
-      if (enrollmentsError) throw enrollmentsError;
+      if (enrollmentsError) {
+        console.error('Enrollments Error:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      console.log('Enrollments loaded:', enrollmentsData);
+
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.log('No students enrolled in this class');
+        setStudentResults([]);
+        return;
+      }
 
       // 4. Get all grades
       let gradesData: any[] = [];
@@ -165,9 +202,14 @@ export default function HomeroomResults() {
           .in('assessment_id', assessmentIds)
           .eq('is_published', true);
 
-        if (error) throw error;
+        if (error) {
+          console.error('Grades Error:', error);
+          throw error;
+        }
         gradesData = data || [];
       }
+
+      console.log('Grades loaded:', gradesData);
 
       // 5. Build subject → assessment mapping
       const subjectAssessmentMap = new Map<string, typeof assessmentsData>();
@@ -236,10 +278,11 @@ export default function HomeroomResults() {
         r.rank = i + 1;
       });
 
+      console.log('Final student results:', results);
       setStudentResults(results);
     } catch (error) {
       console.error('Error loading results:', error);
-      toast.error('Failed to load results');
+      toast.error('Failed to load results: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }

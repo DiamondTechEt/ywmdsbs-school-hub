@@ -86,17 +86,28 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
         .select('id')
         .eq('class_id', classId)
         .eq('subject_id', subjectId)
+        .eq('is_active', true)
         .single();
 
       console.log('CSA Data:', csaData);
+      console.log('CSA Error:', csaError);
 
-      if (csaError && csaError.code !== 'PGRST116') {
+      if (csaError) {
+        if (csaError.code === 'PGRST116') {
+          // No rows returned - no assignment found
+          console.log('No class-subject assignment found');
+          toast.error('You are not assigned to teach this subject for this class');
+          setStudentGrades([]);
+          setAssessments([]);
+          return;
+        }
         console.error('CSA Error:', csaError);
         throw csaError;
       }
 
       if (!csaData) {
         console.log('No CSA data found');
+        toast.error('No class-subject assignment found');
         setStudentGrades([]);
         setAssessments([]);
         return;
@@ -166,7 +177,18 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
         .eq('class_id', classId)
         .eq('is_active', true);
 
-      if (enrollmentsError) throw enrollmentsError;
+      if (enrollmentsError) {
+        console.error('Enrollments Error:', enrollmentsError);
+        throw enrollmentsError;
+      }
+
+      console.log('Enrollments Data:', enrollmentsData);
+
+      if (!enrollmentsData || enrollmentsData.length === 0) {
+        console.log('No students enrolled in this class');
+        setStudentGrades([]);
+        return;
+      }
 
       // Get all grades for these assessments
       const assessmentIds = (assessmentsData || []).map(a => a.id);
@@ -178,9 +200,14 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
           .select('student_id, assessment_id, score, percentage, letter_grade')
           .in('assessment_id', assessmentIds);
 
-        if (gradesError) throw gradesError;
+        if (gradesError) {
+          console.error('Grades Error:', gradesError);
+          throw gradesError;
+        }
         gradesData = data || [];
       }
+
+      console.log('Grades Data:', gradesData);
 
       // Build student grades table
       const students = (enrollmentsData || []).map(enrollment => {
@@ -227,10 +254,11 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
         };
       });
 
+      console.log('Final student grades:', students);
       setStudentGrades(students);
     } catch (error) {
       console.error('Error loading grades data:', error);
-      toast.error('Failed to load grades data');
+      toast.error('Failed to load grades data: ' + (error instanceof Error ? error.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }

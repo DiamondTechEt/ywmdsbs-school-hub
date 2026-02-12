@@ -99,11 +99,14 @@ export function AssessmentManager() {
 
       if (teacherError) throw teacherError;
 
-      // Load teacher's classes
+      // Load teacher's classes with subject assignments
       const { data: classesData, error: classesError } = await supabase
-        .from('class_teachers')
+        .from('class_subject_assignments')
         .select(`
-          *,
+          id,
+          class_id,
+          subject_id,
+          teacher_id,
           classes(id, name),
           subjects(id, name)
         `)
@@ -112,13 +115,15 @@ export function AssessmentManager() {
 
       if (classesError) throw classesError;
 
+      console.log('Loaded classes:', classesData);
+
       const classes = (classesData || []).map(item => ({
-        id: item.id,
+        id: item.id, // Use the assignment ID as the class ID for selection
         class_id: item.class_id,
         class_name: item.classes?.name || 'Unknown Class',
         subject_id: item.subject_id,
-        subject_name: item.subjects?.name,
-        role: item.role
+        subject_name: item.subjects?.name || 'Unknown Subject',
+        role: 'subject_teacher'
       }));
 
       setTeacherClasses(classes);
@@ -221,15 +226,8 @@ export function AssessmentManager() {
       const selectedClass = teacherClasses.find(c => c.id === newAssessment.class_id);
       if (!selectedClass) throw new Error('Class not found');
 
-      const { data: csaData, error: csaError } = await supabase
-        .from('class_subject_assignments')
-        .select('id')
-        .eq('class_id', selectedClass.class_id)
-        .eq('teacher_id', teacherData.id)
-        .eq('subject_id', selectedClass.subject_id)
-        .single();
-
-      if (csaError) throw csaError;
+      // Since we're now using the assignment ID directly, we don't need to query again
+      const csaData = { id: selectedClass.id };
 
       // Validate semester selection
       if (!newAssessment.semester_id) throw new Error('Please select a semester');
@@ -270,9 +268,21 @@ export function AssessmentManager() {
 
     } catch (error) {
       console.error('Error creating assessment:', error);
+      
+      let errorMessage = "Failed to create assessment";
+      if (error instanceof Error) {
+        if (error.message.includes('No subject assignment found')) {
+          errorMessage = "You are not assigned to teach this subject for this class. Please contact your administrator.";
+        } else if (error.message.includes('duplicate key')) {
+          errorMessage = "An assessment with this title already exists for this class.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create assessment",
+        description: errorMessage,
         variant: "destructive"
       });
     }

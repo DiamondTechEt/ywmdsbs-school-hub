@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { TeacherClasses } from '@/components/teacher/TeacherClasses';
+import { PendingGradesManager } from '@/components/teacher/PendingGradesManager';
 import { AssessmentManager } from '@/components/teacher/AssessmentManager';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Calendar, BookOpen, UserCheck, TrendingUp } from 'lucide-react';
+import { Users, Calendar, BookOpen, UserCheck, TrendingUp, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -14,6 +15,7 @@ interface TeacherStats {
   subjectClasses: number;
   totalStudents: number;
   upcomingAssessments: number;
+  pendingGrades: number;
 }
 
 export default function TeacherDashboard() {
@@ -23,7 +25,8 @@ export default function TeacherDashboard() {
     homeroomClasses: 0,
     subjectClasses: 0,
     totalStudents: 0,
-    upcomingAssessments: 0
+    upcomingAssessments: 0,
+    pendingGrades: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -88,12 +91,59 @@ export default function TeacherDashboard() {
 
       if (assessmentsError) throw assessmentsError;
 
+      // Get pending grades count
+      const { data: publishedAssessments } = await supabase
+        .from('assessments')
+        .select('id, class_subject_assignment_id')
+        .eq('created_by_teacher_id', teacherData.id)
+        .eq('is_published', true);
+
+      let pendingGradesCount = 0;
+      
+      if (publishedAssessments && publishedAssessments.length > 0) {
+        // Get class subject assignments to find class and subject IDs
+        const assignmentIds = publishedAssessments.map(a => a.class_subject_assignment_id);
+        const { data: assignments } = await supabase
+          .from('class_subject_assignments')
+          .select('id, class_id, subject_id')
+          .in('id', assignmentIds);
+
+        if (assignments) {
+          for (const assessment of publishedAssessments) {
+            const assignment = assignments.find(a => a.id === assessment.class_subject_assignment_id);
+            if (assignment) {
+              // Get total students for this class
+              const { count: totalStudents } = await supabase
+                .from('enrollments')
+                .select('*', { count: 'exact', head: true })
+                .eq('class_id', assignment.class_id)
+                .eq('is_active', true);
+
+              // Get graded students for this assessment
+              const { count: gradedStudents } = await supabase
+                .from('grades')
+                .select('*', { count: 'exact', head: true })
+                .eq('assessment_id', assessment.id)
+                .eq('class_id', assignment.class_id)
+                .eq('subject_id', assignment.subject_id);
+
+              const total = totalStudents || 0;
+              const graded = gradedStudents || 0;
+              const pending = total - graded;
+              
+              pendingGradesCount += pending;
+            }
+          }
+        }
+      }
+
       setStats({
         totalClasses: classes.length,
         homeroomClasses: homeroomCount,
         subjectClasses: subjectCount,
         totalStudents: totalStudents,
-        upcomingAssessments: (assessmentsData || []).length
+        upcomingAssessments: (assessmentsData || []).length,
+        pendingGrades: pendingGradesCount
       });
 
     } catch (error) {
@@ -129,7 +179,7 @@ export default function TeacherDashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
@@ -184,6 +234,19 @@ export default function TeacherDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Grades</CardTitle>
+            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingGrades}</div>
+            <p className="text-xs text-muted-foreground">
+              Assessments waiting for grading
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Draft Assessments</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -211,14 +274,14 @@ export default function TeacherDashboard() {
           onClick={() => setActiveTab('assessments')}
           className="flex items-center gap-2"
         >
-          <Calendar className="h-4 w-4" />
-          Assessments
+          <CheckCircle className="h-4 w-4" />
+          Pending Grades
         </Button>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'classes' && <TeacherClasses />}
-      {activeTab === 'assessments' && <AssessmentManager />}
+      {activeTab === 'assessments' && <PendingGradesManager />}
     </div>
   );
 }

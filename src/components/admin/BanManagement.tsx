@@ -152,20 +152,7 @@ export function BanManagement({ userRole }: BanManagementProps) {
         // Load both students and teachers
         const { data: teachersData, error: teachersError } = await supabase
           .from('teachers')
-          .select(`
-            id,
-            user_id,
-            first_name,
-            last_name,
-            teacher_code,
-            is_active,
-            is_banned,
-            banned_at,
-            banned_by,
-            ban_reason,
-            ban_notes,
-            created_at
-          `);
+          .select('*');
 
         if (!teachersError) {
           // Get emails for teachers

@@ -59,7 +59,7 @@ interface Assessment {
 interface Semester {
   id: string;
   name: string;
-  is_current: boolean;
+  academic_year_id: string;
 }
 
 interface AssessmentType {

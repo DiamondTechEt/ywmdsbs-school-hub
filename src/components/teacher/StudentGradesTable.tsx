@@ -24,7 +24,6 @@ interface StudentGrade {
     max_score: number;
     score: number | null;
     percentage: number | null;
-    letter_grade: string | null;
   }[];
   total_weighted: number;
   average_percentage: number;
@@ -198,8 +197,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
             weight: assessment.weight,
             max_score: assessment.max_score,
             score: grade?.score || null,
-            percentage: grade?.percentage || null,
-            letter_grade: grade?.letter_grade || null
+            percentage: grade?.percentage || null
           };
         });
 
@@ -239,11 +237,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
   };
 
   const calculateLetterGrade = (percentage: number): string => {
-    if (percentage >= 90) return 'A';
-    if (percentage >= 80) return 'B';
-    if (percentage >= 70) return 'C';
-    if (percentage >= 60) return 'D';
-    return 'F';
+    return `${Math.round(percentage)}`;
   };
 
   // CRUD Functions for Popup Forms
@@ -487,7 +481,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
   };
 
   const exportToCSV = () => {
-    const headers = ['Student ID', 'Name', ...assessments.map(a => `${a.title} (${a.weight}%)`), 'Average', 'Final Grade'];
+    const headers = ['Student ID', 'Name', ...assessments.map(a => `${a.title} (${a.weight}%)`), 'Average'];
     
     const rows = getFilteredAndSortedStudents().map(student => {
       const scores = student.assessments.map(a => a.score !== null ? `${a.score}/${a.max_score}` : '-');
@@ -495,8 +489,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
         student.student_id_code,
         student.full_name,
         ...scores,
-        `${student.average_percentage}%`,
-        student.final_grade
+        `${student.average_percentage}/100`
       ];
     });
 
@@ -616,8 +609,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
                         </div>
                       </TableHead>
                     ))}
-                    <TableHead className="text-center min-w-24">Average</TableHead>
-                    <TableHead className="text-center min-w-24">Final Grade</TableHead>
+                    <TableHead className="text-center min-w-24">Average (/100)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -652,12 +644,9 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
                               </div>
-                              <Badge 
-                                variant={getGradeBadgeVariant(assessment.letter_grade)}
-                                className="text-xs"
-                              >
-                                {assessment.letter_grade || '-'}
-                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                ({assessment.percentage || Math.round((assessment.score! / assessment.max_score) * 100)}/100)
+                              </span>
                             </div>
                           ) : (
                             <div className="flex items-center justify-center">
@@ -674,12 +663,7 @@ export function StudentGradesTable({ classId, subjectId, semesterId, onGradeUpda
                         </TableCell>
                       ))}
                       <TableCell className="text-center">
-                        <span className="font-bold">{student.average_percentage}%</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={getGradeBadgeVariant(student.final_grade)} className="text-lg px-3 py-1">
-                          {student.final_grade}
-                        </Badge>
+                        <span className="font-bold">{student.average_percentage}/100</span>
                       </TableCell>
                     </TableRow>
                   ))}

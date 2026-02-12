@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Key, Mail, Users, Search, RefreshCw } from 'lucide-react';
+import { Key, Mail, Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Profile {
@@ -24,46 +24,224 @@ interface Profile {
   last_sign_in_at?: string | null;
 }
 
+interface UserWithRole extends Profile {
+  user_roles?: {
+    role: string;
+  } | null;
+}
+
 export function UserManagement() {
   const { role: currentUserRole } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [resetPasswordDialog, setResetPasswordDialog] = useState(false);
+  const [createUserDialog, setCreateUserDialog] = useState(false);
+  const [editUserDialog, setEditUserDialog] = useState(false);
+  const [deleteUserDialog, setDeleteUserDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserRole, setNewUserRole] = useState('');
+  const [editUserName, setEditUserName] = useState('');
+  const [editUserRole, setEditUserRole] = useState('');
   const queryClient = useQueryClient();
 
   // Check if current user is super admin
   const isSuperAdmin = currentUserRole === 'super_admin';
 
-  const { data: users, isLoading, error } = useQuery({
+  const { data: users, isLoading, error, refetch } = useQuery({
     queryKey: ['users', searchTerm, selectedRole],
     queryFn: async () => {
       try {
-        // Simple query without join first
-        let query = supabase
+        // Get users first
+        let profilesQuery = supabase
           .from('profiles')
           .select('*')
           .order('created_at', { ascending: false });
 
         if (searchTerm) {
-          query = query.or(`email.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
+          profilesQuery = profilesQuery.or(`email.ilike.%${searchTerm}%,full_name.ilike.%${searchTerm}%`);
         }
 
-        const { data, error } = await query;
+        const { data: profilesData, error: profilesError } = await profilesQuery;
         
-        if (error) {
-          console.error('Error fetching users:', error);
-          throw error;
-        }
+        if (profilesError) throw profilesError;
+
+        // Get user roles separately
+        const userIds = profilesData.map(p => p.id);
+        let rolesQuery = supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
+
+        const { data: rolesData, error: rolesError } = await rolesQuery;
         
-        // Return data without role information for now
-        return data as Profile[];
+        if (rolesError) throw rolesError;
+
+        // Combine the data
+        const usersWithRoles = profilesData.map(profile => {
+          const userRole = rolesData.find(r => r.user_id === profile.id);
+          return {
+            ...profile,
+            user_roles: userRole ? { role: userRole.role } : null,
+          } as UserWithRole;
+        });
+
+        return usersWithRoles;
       } catch (error) {
         console.error('Network error:', error);
         throw error;
       }
+    },
+  });
+
+  const createUserMutation = useMutation({
+    mutationFn: async ({ email, fullName, role }: { email: string; fullName: string; role: string }) => {
+      try {
+        // First create the user in auth
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+          email,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName,
+          },
+        });
+
+        if (authError) throw authError;
+        if (!authData.user) throw new Error('Failed to create user');
+
+        // Then create the profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: authData.user.id,
+            email,
+            full_name: fullName,
+          });
+
+        if (profileError) throw profileError;
+
+        // Then assign the role
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: authData.user.id,
+            role: role as any,
+          });
+
+        if (roleError) throw roleError;
+
+        return { success: true, userId: authData.user.id };
+      } catch (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success('User created successfully');
+      setCreateUserDialog(false);
+      setNewUserEmail('');
+      setNewUserName('');
+      setNewUserRole('');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to create user: ${error.message}`);
+    },
+  });
+
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, fullName, role }: { userId: string; fullName: string; role: string }) => {
+      try {
+        // Update profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            full_name: fullName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        if (profileError) throw profileError;
+
+        // Update or insert role
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+
+        if (existingRole) {
+          // Update existing role
+          const { error: roleError } = await supabase
+            .from('user_roles')
+            .update({ role: role as any })
+            .eq('user_id', userId);
+
+          if (roleError) throw roleError;
+        } else {
+          // Insert new role
+          const { error: roleError } = await supabase
+            .from('user_roles')
+            .insert({
+              user_id: userId,
+              role: role as any,
+            });
+
+          if (roleError) throw roleError;
+        }
+
+        return { success: true };
+      } catch (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success('User updated successfully');
+      setEditUserDialog(false);
+      setSelectedUser(null);
+      setEditUserName('');
+      setEditUserRole('');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to update user: ${error.message}`);
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      try {
+        // Delete user role first
+        await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', userId);
+
+        // Delete profile
+        await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', userId);
+
+        // Delete user from auth
+        const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+        if (authError) throw authError;
+
+        return { success: true };
+      } catch (error) {
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      toast.success('User deleted successfully');
+      setDeleteUserDialog(false);
+      setSelectedUser(null);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed to delete user: ${error.message}`);
     },
   });
 
@@ -103,6 +281,53 @@ export function UserManagement() {
     },
   });
 
+  const handleCreateUser = () => {
+    if (!newUserEmail || !newUserName || !newUserRole) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (!newUserEmail.includes('@')) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    createUserMutation.mutate({
+      email: newUserEmail,
+      fullName: newUserName,
+      role: newUserRole,
+    });
+  };
+
+  const handleUpdateUser = () => {
+    if (!selectedUser || !editUserName || !editUserRole) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    updateUserMutation.mutate({
+      userId: selectedUser.id,
+      fullName: editUserName,
+      role: editUserRole,
+    });
+  };
+
+  const handleDeleteUser = () => {
+    if (!selectedUser) return;
+
+    // Prevent self-deletion
+    supabase.auth.getUser().then(({ data }) => {
+      if (selectedUser.id === data.user?.id) {
+        toast.error('You cannot delete your own account');
+        return;
+      }
+    });
+
+    deleteUserMutation.mutate({
+      userId: selectedUser.id,
+    });
+  };
+
   const handleResetPassword = () => {
     if (!selectedUser) return;
 
@@ -137,15 +362,17 @@ export function UserManagement() {
     }
   };
 
-  const filteredUsers = users?.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase()))
-  ) || [];
+  const filteredUsers = users?.filter(user => {
+    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesRole = selectedRole === 'all' || user.user_roles?.role === selectedRole;
+    return matchesSearch && matchesRole;
+  }) || [];
 
-  // Add role information from a separate query if needed
+  // Add role information from user_roles
   const usersWithRoles = filteredUsers.map(user => ({
     ...user,
-    role: 'unknown' // Default role since we can't join with user_roles
+    role: user.user_roles?.role || 'unknown',
   }));
 
   if (!isSuperAdmin) {
@@ -175,13 +402,97 @@ export function UserManagement() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            User Management
-          </CardTitle>
-          <CardDescription>
-            Manage user accounts and reset passwords
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                User Management
+              </CardTitle>
+              <CardDescription>
+                Manage user accounts, roles, and reset passwords
+              </CardDescription>
+            </div>
+            <Dialog open={createUserDialog} onOpenChange={setCreateUserDialog}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create New User</DialogTitle>
+                  <DialogDescription>
+                    Create a new user account with email, name, and role
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="new-email">Email</Label>
+                    <Input
+                      id="new-email"
+                      type="email"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="Enter email address"
+                      disabled={createUserMutation.isPending}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-name">Full Name</Label>
+                    <Input
+                      id="new-name"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      placeholder="Enter full name"
+                      disabled={createUserMutation.isPending}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="new-role">Role</Label>
+                    <Select value={newUserRole} onValueChange={setNewUserRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="student">Student</SelectItem>
+                        <SelectItem value="teacher">Teacher</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="super_admin">Super Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCreateUserDialog(false);
+                        setNewUserEmail('');
+                        setNewUserName('');
+                        setNewUserRole('');
+                      }}
+                      disabled={createUserMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateUser}
+                      disabled={createUserMutation.isPending}
+                    >
+                      {createUserMutation.isPending ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create User'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -274,88 +585,234 @@ export function UserManagement() {
                           </div>
                         </td>
                         <td className="p-4 align-middle text-right">
-                          <Dialog
-                            open={resetPasswordDialog && selectedUser?.id === user.id}
-                            onOpenChange={(open) => {
-                              setResetPasswordDialog(open);
-                              if (!open) {
-                                setSelectedUser(null);
-                                setNewPassword('');
-                                setConfirmPassword('');
-                              }
-                            }}
-                          >
-                            <DialogTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedUser(user)}
-                                disabled={resetPasswordMutation.isPending}
-                              >
-                                <Key className="h-4 w-4 mr-2" />
-                                Reset Password
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Reset Password</DialogTitle>
-                                <DialogDescription>
-                                  Reset password for {selectedUser?.email}
-                                </DialogDescription>
-                              </DialogHeader>
-                              <div className="space-y-4">
-                                <div>
-                                  <Label htmlFor="new-password">New Password</Label>
-                                  <Input
-                                    id="new-password"
-                                    type="password"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="Enter new password"
-                                    disabled={resetPasswordMutation.isPending}
-                                  />
+                          <div className="flex items-center justify-end gap-2">
+                            <Dialog
+                              open={editUserDialog && selectedUser?.id === user.id}
+                              onOpenChange={(open) => {
+                                setEditUserDialog(open);
+                                if (!open) {
+                                  setSelectedUser(null);
+                                  setEditUserName('');
+                                  setEditUserRole('');
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setEditUserName(user.full_name || '');
+                                    setEditUserRole(user.role || '');
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Edit User</DialogTitle>
+                                  <DialogDescription>
+                                    Update user information for {selectedUser?.email}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="edit-name">Full Name</Label>
+                                    <Input
+                                      id="edit-name"
+                                      value={editUserName}
+                                      onChange={(e) => setEditUserName(e.target.value)}
+                                      placeholder="Enter full name"
+                                      disabled={updateUserMutation.isPending}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="edit-role">Role</Label>
+                                    <Select value={editUserRole} onValueChange={setEditUserRole}>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select role" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="student">Student</SelectItem>
+                                        <SelectItem value="teacher">Teacher</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                        <SelectItem value="super_admin">Super Admin</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => {
+                                        setEditUserDialog(false);
+                                        setSelectedUser(null);
+                                        setEditUserName('');
+                                        setEditUserRole('');
+                                      }}
+                                      disabled={updateUserMutation.isPending}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={handleUpdateUser}
+                                      disabled={updateUserMutation.isPending}
+                                    >
+                                      {updateUserMutation.isPending ? (
+                                        <>
+                                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                          Updating...
+                                        </>
+                                      ) : (
+                                        'Update User'
+                                      )}
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div>
-                                  <Label htmlFor="confirm-password">Confirm Password</Label>
-                                  <Input
-                                    id="confirm-password"
-                                    type="password"
-                                    value={confirmPassword}
-                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="Confirm new password"
-                                    disabled={resetPasswordMutation.isPending}
-                                  />
+                              </DialogContent>
+                            </Dialog>
+
+                            <Dialog
+                              open={resetPasswordDialog && selectedUser?.id === user.id}
+                              onOpenChange={(open) => {
+                                setResetPasswordDialog(open);
+                                if (!open) {
+                                  setSelectedUser(null);
+                                  setNewPassword('');
+                                  setConfirmPassword('');
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedUser(user)}
+                                  disabled={resetPasswordMutation.isPending}
+                                >
+                                  <Key className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Reset Password</DialogTitle>
+                                  <DialogDescription>
+                                    Reset password for {selectedUser?.email}
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="new-password">New Password</Label>
+                                    <Input
+                                      id="new-password"
+                                      type="password"
+                                      value={newPassword}
+                                      onChange={(e) => setNewPassword(e.target.value)}
+                                      placeholder="Enter new password"
+                                      disabled={resetPasswordMutation.isPending}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label htmlFor="confirm-password">Confirm Password</Label>
+                                    <Input
+                                      id="confirm-password"
+                                      type="password"
+                                      value={confirmPassword}
+                                      onChange={(e) => setConfirmPassword(e.target.value)}
+                                      placeholder="Confirm new password"
+                                      disabled={resetPasswordMutation.isPending}
+                                    />
+                                  </div>
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => {
+                                        setResetPasswordDialog(false);
+                                        setSelectedUser(null);
+                                        setNewPassword('');
+                                        setConfirmPassword('');
+                                      }}
+                                      disabled={resetPasswordMutation.isPending}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={handleResetPassword}
+                                      disabled={resetPasswordMutation.isPending}
+                                    >
+                                      {resetPasswordMutation.isPending ? (
+                                        <>
+                                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                          Resetting...
+                                        </>
+                                      ) : (
+                                        'Reset Password'
+                                      )}
+                                    </Button>
+                                  </div>
                                 </div>
-                                <div className="flex justify-end gap-2">
-                                  <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                      setResetPasswordDialog(false);
-                                      setSelectedUser(null);
-                                      setNewPassword('');
-                                      setConfirmPassword('');
-                                    }}
-                                    disabled={resetPasswordMutation.isPending}
-                                  >
-                                    Cancel
-                                  </Button>
-                                  <Button
-                                    onClick={handleResetPassword}
-                                    disabled={resetPasswordMutation.isPending}
-                                  >
-                                    {resetPasswordMutation.isPending ? (
-                                      <>
-                                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                        Resetting...
-                                      </>
-                                    ) : (
-                                      'Reset Password'
-                                    )}
-                                  </Button>
+                              </DialogContent>
+                            </Dialog>
+
+                            <Dialog
+                              open={deleteUserDialog && selectedUser?.id === user.id}
+                              onOpenChange={(open) => {
+                                setDeleteUserDialog(open);
+                                if (!open) {
+                                  setSelectedUser(null);
+                                }
+                              }}
+                            >
+                              <DialogTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setSelectedUser(user)}
+                                  disabled={deleteUserMutation.isPending}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Delete User</DialogTitle>
+                                  <DialogDescription>
+                                    Are you sure you want to delete {selectedUser?.full_name || selectedUser?.email}? This action cannot be undone.
+                                  </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => {
+                                        setDeleteUserDialog(false);
+                                        setSelectedUser(null);
+                                      }}
+                                      disabled={deleteUserMutation.isPending}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      variant="destructive"
+                                      onClick={handleDeleteUser}
+                                      disabled={deleteUserMutation.isPending}
+                                    >
+                                      {deleteUserMutation.isPending ? (
+                                        <>
+                                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                          Deleting...
+                                        </>
+                                      ) : (
+                                        'Delete User'
+                                      )}
+                                    </Button>
+                                  </div>
                                 </div>
-                              </div>
-                            </DialogContent>
-                          </Dialog>
+                              </DialogContent>
+                            </Dialog>
+                          </div>
                         </td>
                       </tr>
                     ))}

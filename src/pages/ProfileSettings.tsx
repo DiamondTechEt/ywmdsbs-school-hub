@@ -45,7 +45,74 @@ export default function ProfileSettings() {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      // Try to get student data first
+      console.log('Loading profile data for user:', user.id);
+
+      // First check if user is super admin to avoid unnecessary queries
+      try {
+        const { data: userRole, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'super_admin')
+          .single();
+
+        console.log('User role check result:', { userRole, roleError });
+
+        if (userRole) {
+          console.log('User is super admin, loading profile data');
+          // User is super admin, check profiles table first
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+
+            console.log('Profile table result:', { profileData, profileError });
+
+            if (profileData) {
+              const fullName = profileData.full_name || '';
+              const nameParts = fullName.split(' ');
+              
+              return {
+                ...profileData,
+                email: user.email,
+                // Map the profile data to the expected form fields
+                first_name: nameParts[0] || '',
+                last_name: nameParts.slice(1).join(' ') || '',
+                middle_name: '', // Profiles table doesn't have middle name
+                phone: '', // Profiles table doesn't have phone
+                avatar_url: profileData.avatar_url || '',
+                type: 'super_admin'
+              };
+            }
+          } catch (error) {
+            console.log('Profile not found, using user metadata');
+            // Profile not found, use user metadata
+          }
+
+          // Get user metadata for super admin
+          const { data: authData } = await supabase.auth.getUser();
+          const metadata = authData?.user?.user_metadata || {};
+          
+          console.log('Using user metadata for super admin:', metadata);
+          
+          return {
+            first_name: metadata.first_name || metadata.full_name?.split(' ')[0] || '',
+            last_name: metadata.last_name || metadata.full_name?.split(' ').slice(1).join(' ') || '',
+            middle_name: metadata.middle_name || '',
+            email: user.email,
+            phone: metadata.phone || '',
+            avatar_url: metadata.avatar_url || '',
+            type: 'super_admin'
+          };
+        }
+      } catch (error) {
+        console.log('Not super admin, checking student/teacher tables');
+        // Not super admin, continue with student/teacher checks
+      }
+
+      // Try to get student data
       try {
         const { data: studentData } = await supabase
           .from('students')
@@ -57,7 +124,7 @@ export default function ProfileSettings() {
           return {
             ...studentData,
             email: user.email,
-            avatar_url: studentData.avatar_url || '', // Handle missing column
+            avatar_url: studentData.avatar_url || '',
             type: 'student'
           };
         }
@@ -77,42 +144,13 @@ export default function ProfileSettings() {
           return {
             ...teacherData,
             email: user.email,
-            phone: teacherData.phone || '', // Handle missing column
-            avatar_url: teacherData.avatar_url || '', // Handle missing column
+            phone: teacherData.phone || '',
+            avatar_url: teacherData.avatar_url || '',
             type: 'teacher'
           };
         }
       } catch (error) {
-        // Teacher not found, continue to super admin check
-      }
-
-      // Try to get super admin data (check user_roles table)
-      try {
-        const { data: userRole } = await supabase
-          .from('user_roles')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('role', 'super_admin')
-          .single();
-
-        if (userRole) {
-          // Get user metadata for super admin
-          const { data: authData } = await supabase.auth.getUser();
-          
-          const metadata = authData?.user?.user_metadata || {};
-          
-          return {
-            first_name: metadata.first_name || metadata.full_name?.split(' ')[0] || '',
-            last_name: metadata.last_name || metadata.full_name?.split(' ').slice(1).join(' ') || '',
-            middle_name: metadata.middle_name || '',
-            email: user.email,
-            phone: metadata.phone || '',
-            avatar_url: metadata.avatar_url || '',
-            type: 'super_admin'
-          };
-        }
-      } catch (error) {
-        // Super admin role not found, use fallback
+        // Teacher not found, use fallback
       }
 
       // Fallback to auth user data
@@ -181,22 +219,55 @@ export default function ProfileSettings() {
           .eq('user_id', user.id);
         if (teacherError) throw teacherError;
       } else if (profileData?.type === 'super_admin') {
-        // Update super admin metadata
-        const { error: authError } = await supabase.auth.updateUser({
-          data: {
-            user_metadata: {
-              first_name: formData.first_name,
-              last_name: formData.last_name,
-              middle_name: formData.middle_name,
-              phone: formData.phone,
-              avatar_url: formData.avatar_url,
+        // Update super admin profile in multiple places
+        try {
+          console.log('Updating super admin profile with data:', formData);
+          
+          // First, try to update the profiles table if it exists
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
               full_name: `${formData.first_name} ${formData.last_name}`.trim(),
-            }
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id);
+
+          console.log('Profile table update result:', { error: profileError });
+
+          if (profileError && !profileError.message.includes('does not exist')) {
+            console.error('Profile table update error:', profileError);
           }
-        });
-        
-        if (authError) {
-          throw authError;
+
+          // Then update user metadata
+          const { error: authError } = await supabase.auth.updateUser({
+            data: {
+              user_metadata: {
+                first_name: formData.first_name,
+                last_name: formData.last_name,
+                middle_name: formData.middle_name,
+                phone: formData.phone,
+                avatar_url: formData.avatar_url,
+                full_name: `${formData.first_name} ${formData.last_name}`.trim(),
+              }
+            }
+          });
+          
+          console.log('Auth metadata update result:', { error: authError });
+          
+          if (authError) {
+            console.error('Auth update error:', authError);
+            // If auth update fails but profile update succeeded, still consider it successful
+            if (!profileError) {
+              console.log('Profile updated successfully, but metadata update failed');
+              return formData;
+            }
+            throw new Error('Failed to update profile metadata. Please contact an administrator.');
+          }
+          
+          console.log('Super admin profile updated successfully');
+        } catch (error) {
+          console.error('Super admin update error:', error);
+          throw new Error('Failed to update profile. Please contact an administrator.');
         }
       }
 
@@ -204,9 +275,22 @@ export default function ProfileSettings() {
     },
     onSuccess: () => {
       toast.success('Profile updated successfully');
+      
+      // Invalidate multiple queries to ensure data refresh
       queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      // Invalidate auth query to refresh user data
       queryClient.invalidateQueries({ queryKey: ['user'] });
+      queryClient.invalidateQueries({ queryKey: ['user-profile', user?.id] });
+      
+      // Force a refetch of the profile data after a short delay
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['user-profile', user?.id] });
+        queryClient.refetchQueries({ queryKey: ['user'] });
+      }, 100);
+      
+      // Also refetch after a longer delay to ensure metadata is updated
+      setTimeout(() => {
+        queryClient.refetchQueries({ queryKey: ['user-profile', user?.id] });
+      }, 500);
     },
     onError: (error: any) => {
       if (error.message?.includes('duplicate key')) {
@@ -260,6 +344,7 @@ export default function ProfileSettings() {
   // Initialize form with profile data
   useEffect(() => {
     if (profileData) {
+      console.log('Initializing form with profile data:', profileData);
       setProfileForm({
         first_name: profileData.first_name || '',
         last_name: profileData.last_name || '',
@@ -270,6 +355,21 @@ export default function ProfileSettings() {
       });
     }
   }, [profileData]);
+
+  // Also update form when mutation succeeds (for immediate feedback)
+  useEffect(() => {
+    if (updateProfileMutation.isSuccess && updateProfileMutation.data) {
+      console.log('Updating form with mutation data:', updateProfileMutation.data);
+      setProfileForm({
+        first_name: updateProfileMutation.data.first_name || '',
+        last_name: updateProfileMutation.data.last_name || '',
+        middle_name: updateProfileMutation.data.middle_name || '',
+        email: updateProfileMutation.data.email || '',
+        phone: updateProfileMutation.data.phone || '',
+        avatar_url: updateProfileMutation.data.avatar_url || '',
+      });
+    }
+  }, [updateProfileMutation.isSuccess, updateProfileMutation.data]);
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();

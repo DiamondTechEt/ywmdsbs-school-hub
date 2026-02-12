@@ -14,18 +14,24 @@ const hasServiceRoleKey = supabaseServiceKey &&
   supabaseServiceKey !== 'your_service_role_key_here' && 
   supabaseServiceKey.length > 50;
 
-// For development, we'll try to use the admin API with the regular client
-// In production, you should add VITE_SUPABASE_SERVICE_ROLE_KEY to your .env file
-export const supabaseAdmin = createClient(
-  supabaseUrl,
-  hasServiceRoleKey ? supabaseServiceKey : import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+// Create a singleton instance to avoid multiple clients
+let supabaseAdminInstance: ReturnType<typeof createClient> | null = null;
+
+export const supabaseAdmin = (() => {
+  if (!supabaseAdminInstance) {
+    supabaseAdminInstance = createClient(
+      supabaseUrl,
+      hasServiceRoleKey ? supabaseServiceKey : import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
   }
-);
+  return supabaseAdminInstance;
+})();
 
 // Helper function to reset user password
 export const resetUserPassword = async (userId: string, newPassword: string) => {

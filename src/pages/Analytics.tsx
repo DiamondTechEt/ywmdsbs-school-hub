@@ -315,7 +315,7 @@ export default function Analytics() {
                     labelLine={false}
                     label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                     outerRadius={100}
-                    fill="#8884d8"
+                    fill="#FF7F11"
                     dataKey="value"
                   >
                     {gradeDistribution.map((_, index) => (

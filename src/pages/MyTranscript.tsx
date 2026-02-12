@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   studentInfo: {
     marginBottom: 20,
     padding: 10,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#E2E8CE',
   },
   infoRow: {
     flexDirection: 'row',
@@ -76,9 +76,9 @@ const styles = StyleSheet.create({
   },
   tableRowAlt: {
     flexDirection: 'row',
-    borderBottom: '1 solid #ddd',
+    borderBottom: '1 solid #ACBFA4',
     padding: 8,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: '#E2E8CE',
   },
   col1: { width: '40%' },
   col2: { width: '15%', textAlign: 'center' },
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: 20,
     padding: 15,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#ACBFA4',
     borderRadius: 5,
   },
   summaryRow: {

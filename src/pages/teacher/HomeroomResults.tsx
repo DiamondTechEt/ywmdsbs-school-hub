@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -8,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, Home, Download, Search, Trophy, ArrowUpDown } from 'lucide-react';
+import { Loader2, Home, Download, Search, Trophy, ArrowUpDown, Shield } from 'lucide-react';
 
 interface SubjectResult {
   subject_id: string;
@@ -37,15 +38,19 @@ interface HomeroomClass {
 }
 
 export default function HomeroomResults() {
+  const { role } = useAuth();
   const [loading, setLoading] = useState(false);
   const [homeroomClasses, setHomeroomClasses] = useState<HomeroomClass[]>([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSemester, setSelectedSemester] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState('');
   const [semesters, setSemesters] = useState<{ id: string; name: string }[]>([]);
   const [subjects, setSubjects] = useState<{ id: string; name: string; code: string }[]>([]);
   const [studentResults, setStudentResults] = useState<StudentResult[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'rank' | 'name' | 'id'>('rank');
+  
+  const isSuperAdmin = role === 'super_admin';
 
   useEffect(() => {
     loadHomeroomClasses();
@@ -58,41 +63,79 @@ export default function HomeroomResults() {
     }
   }, [selectedClass, selectedSemester]);
 
+  // Additional effect for grade filtering (super admin only)
+  useEffect(() => {
+    if (isSuperAdmin && selectedGrade) {
+      // Filter classes by selected grade
+      const filteredClasses = homeroomClasses.filter(c => c.grade_level.toString() === selectedGrade);
+      if (filteredClasses.length > 0 && !filteredClasses.some(c => c.id === selectedClass)) {
+        setSelectedClass(filteredClasses[0].id);
+      }
+    }
+  }, [selectedGrade, isSuperAdmin, homeroomClasses]);
+
   const loadHomeroomClasses = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: teacherData } = await supabase
-        .from('teachers')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
+      if (isSuperAdmin) {
+        // Super admin can see all classes
+        const { data: classesData, error } = await supabase
+          .from('classes')
+          .select('id, name, grade_level')
+          .order('grade_level')
+          .order('name');
 
-      if (!teacherData) return;
+        if (error) {
+          console.error('Error loading all classes:', error);
+          throw error;
+        }
+        
+        console.log('All classes loaded for super admin:', classesData);
+        setHomeroomClasses(classesData || []);
+        
+        // Get unique grades for filtering
+        const uniqueGrades = [...new Set((classesData || []).map(c => c.grade_level))].sort((a, b) => a - b);
+        console.log('Available grades:', uniqueGrades);
+        
+        if (classesData && classesData.length > 0) {
+          setSelectedClass(classesData[0].id);
+          setSelectedGrade(classesData[0].grade_level.toString());
+        }
+      } else {
+        // Teacher logic - only their homeroom classes
+        const { data: teacherData } = await supabase
+          .from('teachers')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
 
-      // Get classes where this teacher is homeroom teacher
-      const { data: classesData, error } = await supabase
-        .from('classes')
-        .select('id, name, grade_level')
-        .eq('homeroom_teacher_id', teacherData.id)
-        .order('grade_level')
-        .order('name');
+        if (!teacherData) return;
 
-      if (error) {
-        console.error('Error loading homeroom classes:', error);
-        throw error;
-      }
-      
-      console.log('Homeroom classes loaded:', classesData);
-      setHomeroomClasses(classesData || []);
+        // Get classes where this teacher is homeroom teacher
+        const { data: classesData, error } = await supabase
+          .from('classes')
+          .select('id, name, grade_level')
+          .eq('homeroom_teacher_id', teacherData.id)
+          .order('grade_level')
+          .order('name');
 
-      if (classesData && classesData.length > 0) {
-        setSelectedClass(classesData[0].id);
+        if (error) {
+          console.error('Error loading homeroom classes:', error);
+          throw error;
+        }
+        
+        console.log('Homeroom classes loaded:', classesData);
+        setHomeroomClasses(classesData || []);
+
+        if (classesData && classesData.length > 0) {
+          setSelectedClass(classesData[0].id);
+        }
       }
     } catch (error) {
-      console.error('Error loading homeroom classes:', error);
-      toast.error('Failed to load homeroom classes');
+      console.error('Error loading classes:', error);
+      toast.error('Failed to load classes');
     }
   };
 
@@ -331,15 +374,20 @@ export default function HomeroomResults() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Home className="h-8 w-8" />
-            Homeroom Results
+            {isSuperAdmin ? <Shield className="h-8 w-8" /> : <Home className="h-8 w-8" />}
+            {isSuperAdmin ? 'All Classes Results' : 'Homeroom Results'}
           </h1>
         </div>
         <Card>
           <CardContent className="flex items-center justify-center p-12">
             <div className="text-center">
-              <Home className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">You are not assigned as homeroom teacher for any class.</p>
+              {isSuperAdmin ? <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" /> : <Home className="h-12 w-12 mx-auto text-muted-foreground mb-4" />}
+              <p className="text-muted-foreground">
+                {isSuperAdmin 
+                  ? 'No classes found in the system.'
+                  : 'You are not assigned as homeroom teacher for any class.'
+                }
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -351,29 +399,51 @@ export default function HomeroomResults() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Home className="h-8 w-8" />
-          Homeroom Results
+          {isSuperAdmin ? <Shield className="h-8 w-8" /> : <Home className="h-8 w-8" />}
+          {isSuperAdmin ? 'All Classes Results' : 'Homeroom Results'}
         </h1>
         <p className="text-muted-foreground">
-          View all subjects results, sum, average, and rank for your homeroom class
+          {isSuperAdmin 
+            ? 'View all subjects results, averages, and ranks for any class in the school'
+            : 'View all subjects results, sum, average, and rank for your homeroom class'
+          }
         </p>
       </div>
 
       {/* Controls */}
       <Card>
         <CardHeader>
-          <CardTitle>Select Class & Semester</CardTitle>
+          <CardTitle>{isSuperAdmin ? 'Select Grade, Class & Semester' : 'Select Class & Semester'}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={`grid gap-4 ${isSuperAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label>Grade Level</Label>
+                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select grade" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...new Set(homeroomClasses.map(c => c.grade_level))].sort((a, b) => a - b).map(grade => (
+                      <SelectItem key={grade} value={grade.toString()}>
+                        Grade {grade}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2">
-              <Label>Homeroom Class</Label>
+              <Label>{isSuperAdmin ? 'Class' : 'Homeroom Class'}</Label>
               <Select value={selectedClass} onValueChange={setSelectedClass}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select class" />
                 </SelectTrigger>
                 <SelectContent>
-                  {homeroomClasses.map(cls => (
+                  {homeroomClasses
+                    .filter(cls => !isSuperAdmin || !selectedGrade || cls.grade_level.toString() === selectedGrade)
+                    .map(cls => (
                     <SelectItem key={cls.id} value={cls.id}>
                       {cls.name} (Grade {cls.grade_level})
                     </SelectItem>

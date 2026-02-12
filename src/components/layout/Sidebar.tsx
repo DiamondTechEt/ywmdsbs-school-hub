@@ -86,38 +86,49 @@ export function Sidebar() {
   const navItems = {
     super_admin: [
       {
-        category: 'Main',
+        category: 'Dashboard',
         items: [
           { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-          { to: '/settings', icon: Settings, label: 'Settings' },
           { to: '/profile-settings', icon: User, label: 'Profile Settings' },
+          { to: '/settings', icon: Settings, label: 'Settings' },
         ]
       },
       {
         category: 'Academic Management',
         items: [
+          { to: '/classes', icon: School, label: 'Classes' },
           { to: '/students', icon: GraduationCap, label: 'Students' },
           { to: '/teachers', icon: Users, label: 'Teachers' },
-          { to: '/classes', icon: School, label: 'Classes' },
           { to: '/subjects', icon: BookOpen, label: 'Subjects' },
           { to: '/academic-years', icon: Calendar, label: 'Academic Years' },
           { to: '/semesters', icon: Calendar, label: 'Semesters' },
         ]
       },
       {
-        category: 'Assessment & Grading',
+        category: 'Enrollment & Assignments',
         items: [
           { to: '/enrollments', icon: Users, label: 'Enrollments' },
-          { to: '/assignments', icon: BookOpen, label: 'Assignments' },
           { to: '/class-teacher-assignments', icon: UserCheck, label: 'Class Teachers' },
-          { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
-          { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
+          { to: '/assignments', icon: BookOpen, label: 'Assignments' },
         ]
       },
       {
-        category: 'Analytics & Security',
+        category: 'Assessment & Grading',
+        items: [
+          { to: '/assessments', icon: ClipboardList, label: 'Assessments' },
+          { to: '/grades', icon: FileSpreadsheet, label: 'Grades' },
+          { to: '/homeroom-results', icon: Home, label: 'Homeroom Results' },
+        ]
+      },
+      {
+        category: 'Analytics & Reports',
         items: [
           { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+        ]
+      },
+      {
+        category: 'System Administration',
+        items: [
           { to: '/admin/users', icon: Key, label: 'User Management' },
           { to: '/audit-logs', icon: ClipboardList, label: 'Audit Logs' },
           { to: '/ban-management', icon: Shield, label: 'Ban Management' },

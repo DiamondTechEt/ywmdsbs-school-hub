@@ -804,6 +804,10 @@ export type Database = {
       students: {
         Row: {
           avatar_url: string | null
+          ban_notes: string | null
+          ban_reason: string | null
+          banned_at: string | null
+          banned_by: string | null
           boarding_status: Database["public"]["Enums"]["boarding_status"]
           created_at: string
           current_class_id: string | null
@@ -813,6 +817,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["gender_type"]
           id: string
           is_active: boolean
+          is_banned: boolean
           last_name: string
           middle_name: string | null
           student_id_code: string
@@ -821,6 +826,10 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          ban_notes?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           boarding_status?: Database["public"]["Enums"]["boarding_status"]
           created_at?: string
           current_class_id?: string | null
@@ -830,6 +839,7 @@ export type Database = {
           gender: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_active?: boolean
+          is_banned?: boolean
           last_name: string
           middle_name?: string | null
           student_id_code: string
@@ -838,6 +848,10 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          ban_notes?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           boarding_status?: Database["public"]["Enums"]["boarding_status"]
           created_at?: string
           current_class_id?: string | null
@@ -847,6 +861,7 @@ export type Database = {
           gender?: Database["public"]["Enums"]["gender_type"]
           id?: string
           is_active?: boolean
+          is_banned?: boolean
           last_name?: string
           middle_name?: string | null
           student_id_code?: string
@@ -854,6 +869,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "students_banned_by_fkey"
+            columns: ["banned_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "students_current_class_id_fkey"
             columns: ["current_class_id"]
@@ -899,12 +921,17 @@ export type Database = {
       teachers: {
         Row: {
           avatar_url: string | null
+          ban_notes: string | null
+          ban_reason: string | null
+          banned_at: string | null
+          banned_by: string | null
           created_at: string
           first_name: string
           gender: Database["public"]["Enums"]["gender_type"]
           hire_date: string
           id: string
           is_active: boolean
+          is_banned: boolean
           last_name: string
           middle_name: string | null
           phone: string | null
@@ -914,12 +941,17 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          ban_notes?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           created_at?: string
           first_name: string
           gender: Database["public"]["Enums"]["gender_type"]
           hire_date: string
           id?: string
           is_active?: boolean
+          is_banned?: boolean
           last_name: string
           middle_name?: string | null
           phone?: string | null
@@ -929,12 +961,17 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          ban_notes?: string | null
+          ban_reason?: string | null
+          banned_at?: string | null
+          banned_by?: string | null
           created_at?: string
           first_name?: string
           gender?: Database["public"]["Enums"]["gender_type"]
           hire_date?: string
           id?: string
           is_active?: boolean
+          is_banned?: boolean
           last_name?: string
           middle_name?: string | null
           phone?: string | null
@@ -942,7 +979,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "teachers_banned_by_fkey"
+            columns: ["banned_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_names: {
         Row: {

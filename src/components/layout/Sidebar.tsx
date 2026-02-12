@@ -20,7 +20,8 @@ import {
   Menu,
   X,
   Shield,
-  Key
+  Key,
+  Home
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -130,6 +131,7 @@ export function Sidebar() {
       { to: '/teacher-assessments', icon: BookOpen, label: 'Assessments' },
       { to: '/teacher-grades', icon: Award, label: 'Grades' },
       { to: '/teacher-student-grades', icon: FileSpreadsheet, label: 'Student Grades Table' },
+      { to: '/homeroom-results', icon: Home, label: 'Homeroom Results' },
       { to: '/teacher-analytics', icon: BarChart3, label: 'Analytics' },
       { to: '/upload-grades', icon: FileSpreadsheet, label: 'Upload Grades' },
       { to: '/profile-settings', icon: User, label: 'Profile Settings' },

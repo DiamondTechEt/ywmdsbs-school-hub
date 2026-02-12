@@ -31,6 +31,7 @@ import { TeacherAssessments } from "./pages/teacher/TeacherAssessments";
 import { TeacherGrades } from "./pages/teacher/TeacherGrades";
 import { TeacherAnalytics } from "./pages/teacher/TeacherAnalytics";
 import TeacherStudentGrades from "./pages/teacher/TeacherStudentGrades";
+import HomeroomResults from "./pages/teacher/HomeroomResults";
 import UploadGrades from "./pages/UploadGrades";
 import MyGrades from "./pages/MyGrades";
 import MyTranscript from "./pages/MyTranscript";
@@ -251,6 +252,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
                     <TeacherAnalytics />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/homeroom-results" 
+                element={
+                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                    <HomeroomResults />
                   </ProtectedRoute>
                 } 
               />

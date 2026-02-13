@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { resetUserPassword } from '../../lib/supabaseAdmin';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
-import { Key, Mail, Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus } from 'lucide-react';
+import { Key, Mail, Users, Search, RefreshCw, Plus, Edit, Trash2, UserPlus, CheckSquare } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface Profile {
@@ -46,6 +47,9 @@ export function UserManagement() {
   const [newUserRole, setNewUserRole] = useState('');
   const [editUserName, setEditUserName] = useState('');
   const [editUserRole, setEditUserRole] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkResetDialog, setBulkResetDialog] = useState(false);
+  const [bulkPassword, setBulkPassword] = useState('');
   const queryClient = useQueryClient();
 
   // Check if current user is super admin
@@ -247,30 +251,30 @@ export function UserManagement() {
 
   const resetPasswordMutation = useMutation({
     mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
-      try {
-        // First, get the user's email from profiles
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', userId)
-          .single();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
 
-        if (profileError) throw profileError;
-
-        // Use the admin function to reset password
-        const { error: resetError, success } = await resetUserPassword(userId, password);
-
-        if (resetError || !success) {
-          throw new Error(resetError?.message || 'Password reset failed');
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({ userId, newPassword: password }),
         }
+      );
 
-        return { email: profile.email, success: true };
-      } catch (error) {
-        throw error;
-      }
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to reset password');
+      
+      return { success: true };
     },
-    onSuccess: (result) => {
-      toast.success(`Password reset successfully for ${result.email}`);
+    onSuccess: () => {
+      toast.success('Password reset successfully');
       setResetPasswordDialog(false);
       setNewPassword('');
       setConfirmPassword('');
@@ -278,6 +282,62 @@ export function UserManagement() {
     },
     onError: (error: any) => {
       toast.error(`Failed to reset password: ${error.message}`);
+    },
+  });
+
+  const bulkResetPasswordMutation = useMutation({
+    mutationFn: async ({ userIds, password }: { userIds: string[]; password: string }) => {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const results = await Promise.allSettled(
+        userIds.map(userId =>
+          fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reset-user-password`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+              body: JSON.stringify({ userId, newPassword: password }),
+            }
+          ).then(r => r.json())
+        )
+      );
+
+      const failed = results.filter(r => r.status === 'rejected').length;
+      if (failed > 0) throw new Error(`${failed} of ${userIds.length} password resets failed`);
+      return { count: userIds.length };
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.count} passwords reset successfully`);
+      setBulkResetDialog(false);
+      setBulkPassword('');
+      setSelectedIds(new Set());
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (userIds: string[]) => {
+      for (const userId of userIds) {
+        await supabase.from('user_roles').delete().eq('user_id', userId);
+        await supabase.from('profiles').delete().eq('id', userId);
+      }
+      return { count: userIds.length };
+    },
+    onSuccess: (data) => {
+      toast.success(`${data.count} users deleted`);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (error: any) => {
+      toast.error(`Failed: ${error.message}`);
     },
   });
 
@@ -374,6 +434,22 @@ export function UserManagement() {
     ...user,
     role: user.user_roles?.role || 'unknown',
   }));
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === usersWithRoles.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(usersWithRoles.map(u => u.id)));
+    }
+  };
 
   if (!isSuperAdmin) {
     return (
@@ -531,6 +607,29 @@ export function UserManagement() {
             </Button>
           </div>
 
+          {/* Bulk Actions Bar */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 p-3 bg-muted rounded-lg mb-4">
+              <CheckSquare className="h-4 w-4" />
+              <span className="text-sm font-medium">{selectedIds.size} selected</span>
+              <Button variant="outline" size="sm" onClick={() => setBulkResetDialog(true)}>
+                <Key className="h-3 w-3 mr-1" />
+                Reset Passwords
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => {
+                if (confirm(`Delete ${selectedIds.size} users? This cannot be undone.`)) {
+                  bulkDeleteMutation.mutate(Array.from(selectedIds));
+                }
+              }}>
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                Clear
+              </Button>
+            </div>
+          )}
+
           {isLoading ? (
             <div className="text-center py-8">
               <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
@@ -548,6 +647,12 @@ export function UserManagement() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
+                      <th className="h-12 px-4 align-middle w-10">
+                        <Checkbox
+                          checked={selectedIds.size === usersWithRoles.length && usersWithRoles.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </th>
                       <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                         User
                       </th>
@@ -565,12 +670,26 @@ export function UserManagement() {
                   <tbody>
                     {usersWithRoles.map((user) => (
                       <tr key={user.id} className="border-b transition-colors hover:bg-muted/50">
+                        <td className="p-4 align-middle w-10">
+                          <Checkbox
+                            checked={selectedIds.has(user.id)}
+                            onCheckedChange={() => toggleSelect(user.id)}
+                          />
+                        </td>
                         <td className="p-4 align-middle">
-                          <div>
-                            <div className="font-medium">{user.full_name || 'Unknown'}</div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {user.email}
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={user.avatar_url || undefined} />
+                              <AvatarFallback className="text-xs">
+                                {(user.full_name || 'U')[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{user.full_name || 'Unknown'}</div>
+                              <div className="text-sm text-muted-foreground flex items-center gap-1">
+                                <Mail className="h-3 w-3" />
+                                {user.email}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -823,6 +942,51 @@ export function UserManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Reset Password Dialog */}
+      <Dialog open={bulkResetDialog} onOpenChange={setBulkResetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Reset Passwords</DialogTitle>
+            <DialogDescription>
+              Reset passwords for {selectedIds.size} selected users. All selected users will get the same password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>New Password (for all selected users)</Label>
+              <Input
+                type="password"
+                value={bulkPassword}
+                onChange={(e) => setBulkPassword(e.target.value)}
+                placeholder="Enter new password (min 6 chars)"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setBulkResetDialog(false)}>Cancel</Button>
+              <Button
+                onClick={() => {
+                  if (bulkPassword.length < 6) {
+                    toast.error('Password must be at least 6 characters');
+                    return;
+                  }
+                  bulkResetPasswordMutation.mutate({
+                    userIds: Array.from(selectedIds),
+                    password: bulkPassword,
+                  });
+                }}
+                disabled={bulkResetPasswordMutation.isPending}
+              >
+                {bulkResetPasswordMutation.isPending ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Resetting...</>
+                ) : (
+                  `Reset ${selectedIds.size} Passwords`
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -9,9 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { Settings as SettingsIcon, User, Lock, Mail, Phone, Camera, Loader2, Save, Eye, EyeOff } from 'lucide-react';
+import { AvatarUpload } from '@/components/shared/AvatarUpload';
 
 export default function ProfileSettings() {
   const { user, signOut } = useAuth();
@@ -461,14 +461,12 @@ export default function ProfileSettings() {
               <form onSubmit={handleProfileSubmit} className="space-y-6">
                 {/* Avatar Upload */}
                 <div className="flex justify-center">
-                  <div className="relative">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={profileForm.avatar_url || undefined} />
-                      <AvatarFallback className="text-2xl">
-                        {profileForm.first_name?.[0]}{profileForm.last_name?.[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
+                  <AvatarUpload
+                    currentAvatarUrl={profileForm.avatar_url}
+                    onUploadComplete={(url) => setProfileForm({ ...profileForm, avatar_url: url })}
+                    size="xl"
+                    fallbackText={`${profileForm.first_name?.[0] || ''}${profileForm.last_name?.[0] || ''}`}
+                  />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -519,15 +517,6 @@ export default function ProfileSettings() {
                       value={profileForm.phone}
                       onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                       placeholder="Enter your phone number"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="avatar_url">Avatar URL (Optional)</Label>
-                    <Input
-                      id="avatar_url"
-                      value={profileForm.avatar_url}
-                      onChange={(e) => setProfileForm({ ...profileForm, avatar_url: e.target.value })}
-                      placeholder="Enter avatar URL"
                     />
                   </div>
                 </div>

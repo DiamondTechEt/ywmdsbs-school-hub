@@ -56,8 +56,6 @@ export default function MyGrades() {
     ? grades.reduce((sum, grade) => sum + (grade.percentage || 0), 0) / grades.length 
     : 0;
 
-  const gpa = (overallAverage / 100) * 4;
-
   const subjectAverages = Object.entries(gradesBySubject || {}).map(([subject, grades]: [string, any[]]) => {
     const totalPercentage = grades.reduce((sum, g) => sum + (g.percentage || 0), 0);
     const average = totalPercentage / grades.length;
@@ -65,15 +63,10 @@ export default function MyGrades() {
       subject,
       grades,
       average: Math.round(average * 10) / 10,
-      letterGrade: getLetterGrade(average),
       subjectCode: grades[0]?.subject?.code || 'SUBJ001',
       credits: grades[0]?.subject?.credit || 1,
     };
   });
-
-  function getLetterGrade(percentage: number): string {
-    return `${Math.round(percentage)}/100`;
-  }
 
   const isLoading = studentLoading || gradesLoading;
 
@@ -102,26 +95,26 @@ export default function MyGrades() {
       </div>
 
       {/* Overview Cards */}
-      <div className="mb-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium">Overall Average</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{overallAverage.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">{overallAverage.toFixed(1)}/100</div>
             <p className="text-xs text-muted-foreground">Across all subjects</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">GPA</CardTitle>
-            <Award className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Assessments</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{gpa.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Out of 4.0</p>
+            <div className="text-2xl font-bold">{grades?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">Completed</p>
           </CardContent>
         </Card>
 
@@ -163,7 +156,7 @@ export default function MyGrades() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {subjectAverages.map(({ subject, average, letterGrade, subjectCode, credits }) => (
+                  {subjectAverages.map(({ subject, average, subjectCode, credits }) => (
                     <div key={subject} className="flex items-center justify-between">
                       <div>
                         <div className="font-medium">{subject}</div>
@@ -172,10 +165,7 @@ export default function MyGrades() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold">{average}%</div>
-                        <Badge variant="outline" className="text-sm">
-                          {letterGrade}
-                        </Badge>
+                        <div className="text-lg font-bold">{average}/100</div>
                       </div>
                     </div>
                   ))}
@@ -199,9 +189,9 @@ export default function MyGrades() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-lg font-bold">{grade.percentage}%</div>
+                        <div className="text-lg font-bold">{grade.score}/{grade.assessment?.max_score || 100}</div>
                         <Badge variant={grade.percentage >= 70 ? 'default' : 'secondary'}>
-                          {grade.letter_grade}
+                          {grade.percentage}/100
                         </Badge>
                       </div>
                     </div>
@@ -233,7 +223,6 @@ export default function MyGrades() {
                           <TableHead>Assessment</TableHead>
                           <TableHead>Score</TableHead>
                           <TableHead>Percentage</TableHead>
-                          <TableHead>Grade</TableHead>
                           <TableHead>Date</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -248,19 +237,14 @@ export default function MyGrades() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                <span>{grade.percentage}%</span>
-                                <div className="w-12 bg-gray-200 rounded-full h-2">
+                                <span>{grade.percentage}/100</span>
+                                <div className="w-12 bg-muted rounded-full h-2">
                                   <div 
-                                    className="bg-blue-600 h-2 rounded-full" 
+                                    className="bg-primary h-2 rounded-full" 
                                     style={{ width: `${grade.percentage}%` }}
                                   />
                                 </div>
                               </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={grade.percentage >= 70 ? 'default' : 'secondary'}>
-                                {grade.letter_grade}
-                              </Badge>
                             </TableCell>
                             <TableCell>
                               {new Date(grade.assessment?.assessment_date || grade.created_at).toLocaleDateString()}

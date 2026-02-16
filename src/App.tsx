@@ -40,6 +40,10 @@ import ProfileSettings from "./pages/ProfileSettings";
 import ParentPortal from "./pages/ParentPortal";
 import { BanManagement } from "./components/admin/BanManagement";
 import UserManagementPage from "./pages/admin/UserManagementPage";
+import CMSPages from "./pages/admin/CMSPages";
+import AboutPage from "./pages/public/AboutPage";
+import BlogPage from "./pages/public/BlogPage";
+import GalleryPage from "./pages/public/GalleryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +60,9 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/" element={<LandingPage />} />
               <Route path="/landing" element={<LandingPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/blog" element={<BlogPage />} />
+              <Route path="/gallery" element={<GalleryPage />} />
               <Route element={<AppLayout />}>
                 {/* Shared */}
                 <Route path="/dashboard" element={<Dashboard />} />
@@ -130,6 +137,14 @@ const App = () => (
                 element={
                   <ProtectedRoute allowedRoles={['super_admin']}>
                     <UserManagementPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/admin/cms" 
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <CMSPages />
                   </ProtectedRoute>
                 } 
               />

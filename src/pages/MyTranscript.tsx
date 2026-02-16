@@ -559,21 +559,21 @@ export default function MyTranscript() {
                 </thead>
                 <tbody>
                   {Object.entries(
-                    grades.reduce((acc: Record<string, any[]>, grade: any) => {
+                    grades.reduce((acc: Record<string, any>, grade: any) => {
                       const subjectName = grade.subject?.name || 'Unknown Subject';
                       if (!acc[subjectName]) {
                         acc[subjectName] = {
                           name: subjectName,
                           code: grade.subject?.code || 'SUBJ001',
                           credit: grade.subject?.credit || 1,
-                          grades: [],
+                          gradesList: [],
                         };
                       }
-                      acc[subjectName].grades.push(grade);
+                      acc[subjectName].gradesList.push(grade);
                       return acc;
-                    }, {})
+                    }, {} as Record<string, any>)
                   ).map(([subjectName, subjectData]: [string, any], index: number) => {
-                    const avg = subjectData.grades.reduce((sum: number, g: any) => sum + (g.percentage || 0), 0) / subjectData.grades.length;
+                    const avg = subjectData.gradesList.reduce((sum: number, g: any) => sum + (g.percentage || 0), 0) / subjectData.gradesList.length;
                     
                     return (
                       <tr key={subjectName} className={`border border-gray-300 text-xs ${

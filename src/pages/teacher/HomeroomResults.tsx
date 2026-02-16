@@ -552,7 +552,9 @@ export default function HomeroomResults() {
                         {student.student_id_code}
                       </TableCell>
                       <TableCell className="sticky left-44 bg-background font-medium">
-                        {student.full_name}
+                        <div className="flex items-center gap-2">
+                          {student.full_name}
+                        </div>
                       </TableCell>
                       {subjects.map(subject => {
                         const subResult = student.subjects.find(s => s.subject_id === subject.id);

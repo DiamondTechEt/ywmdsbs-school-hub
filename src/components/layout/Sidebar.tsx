@@ -21,17 +21,21 @@ import {
   X,
   Shield,
   Key,
-  Home
+  Home,
+  FileText,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import NotificationBell from '@/components/NotificationBell';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 export function Sidebar() {
   const { role, signOut, user } = useAuth();
   const [userName, setUserName] = useState<string>('');
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
@@ -51,19 +55,18 @@ export function Sidebar() {
 
   const fetchUserName = async () => {
     try {
-      // Try to get user name from profiles table first
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, email')
+        .select('full_name, email, avatar_url')
         .eq('id', user?.id)
         .single();
 
       if (error) {
         console.error('Error fetching user name from profiles:', error);
-        // Fallback to auth user metadata if available
         setUserName(user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User');
       } else {
         setUserName(data?.full_name || data?.email?.split('@')[0] || 'User');
+        setUserAvatar(data?.avatar_url || null);
       }
     } catch (error) {
       console.error('Error fetching user name:', error);
@@ -130,6 +133,7 @@ export function Sidebar() {
         category: 'System Administration',
         items: [
           { to: '/admin/users', icon: Key, label: 'User Management' },
+          { to: '/admin/cms', icon: FileText, label: 'Content Pages' },
           { to: '/audit-logs', icon: ClipboardList, label: 'Audit Logs' },
           { to: '/ban-management', icon: Shield, label: 'Ban Management' },
         ]
@@ -227,9 +231,7 @@ export function Sidebar() {
             isCollapsed ? "text-center" : ""
           )}>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                <User className="h-4 w-4 text-gray-600" />
-              </div>
+              <UserAvatar avatarUrl={userAvatar} firstName={userName.split(' ')[0]} lastName={userName.split(' ')[1]} size="sm" />
               {!isCollapsed && (
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">

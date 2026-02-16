@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Plus, Search, Edit, Trash2, Users, Loader2, Eye, Calendar, BookOpen, Award, Ban, Unlock, Shield } from 'lucide-react';
 import { z } from 'zod';
 import { logTeacherAction } from '@/lib/audit-logger';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 const teacherSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -592,7 +593,10 @@ export default function Teachers() {
                     <TableRow key={teacher.id}>
                       <TableCell className="font-mono">{teacher.teacher_code}</TableCell>
                       <TableCell className="font-medium">
-                        {teacher.first_name} {teacher.middle_name} {teacher.last_name}
+                        <div className="flex items-center gap-2">
+                          <UserAvatar avatarUrl={teacher.avatar_url} firstName={teacher.first_name} lastName={teacher.last_name} size="xs" />
+                          {teacher.first_name} {teacher.middle_name} {teacher.last_name}
+                        </div>
                       </TableCell>
                       <TableCell className="capitalize">{teacher.gender}</TableCell>
                       <TableCell>{new Date(teacher.hire_date).toLocaleDateString()}</TableCell>

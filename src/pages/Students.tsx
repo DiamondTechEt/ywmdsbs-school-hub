@@ -14,6 +14,7 @@ import { Plus, Search, Edit, Trash2, GraduationCap, Loader2, Ban, Unlock, Shield
 import { z } from 'zod';
 import { logStudentAction, logBulkOperation } from '@/lib/audit-logger';
 import { notifyStudentGrade } from '@/lib/notifications';
+import { UserAvatar } from '@/components/shared/UserAvatar';
 
 const studentSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -555,7 +556,10 @@ export default function Students() {
                     <TableRow key={student.id}>
                       <TableCell className="font-mono">{student.student_id_code}</TableCell>
                       <TableCell className="font-medium">
-                        {student.first_name} {student.middle_name} {student.last_name}
+                        <div className="flex items-center gap-2">
+                          <UserAvatar avatarUrl={student.avatar_url} firstName={student.first_name} lastName={student.last_name} size="xs" />
+                          {student.first_name} {student.middle_name} {student.last_name}
+                        </div>
                       </TableCell>
                       <TableCell className="capitalize">{student.gender}</TableCell>
                       <TableCell>

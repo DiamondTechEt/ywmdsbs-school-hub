@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
@@ -27,6 +29,35 @@ import {
 
 export function LandingPage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  const { data: visionPage } = useQuery({
+    queryKey: ['landing-vision'],
+    queryFn: async () => {
+      const { data } = await supabase.from('cms_pages').select('content').eq('page_type', 'vision').eq('is_published', true).maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: missionPage } = useQuery({
+    queryKey: ['landing-mission'],
+    queryFn: async () => {
+      const { data } = await supabase.from('cms_pages').select('content').eq('page_type', 'mission').eq('is_published', true).maybeSingle();
+      return data;
+    },
+  });
+
+  const defaultVision = '"To be a premier center of academic excellence that produces globally competitive, ethically grounded, and socially responsible leaders who drive the sustainable transformation of Ethiopia and the world."';
+  const defaultMission = [
+    "Cultivating critical thinking and innovation through rigorous STEM education.",
+    "Fostering integrity, discipline, and a spirit of service in every student.",
+    "Providing a nurturing boarding environment that celebrates diversity and meritocracy.",
+    "Equipping the next generation with the tools to solve complex national challenges."
+  ];
+
+  const visionText = visionPage?.content || defaultVision;
+  const missionItems = missionPage?.content
+    ? missionPage.content.split('\n').filter(Boolean)
+    : defaultMission;
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -297,9 +328,7 @@ export function LandingPage() {
               </div>
               <h2 className="text-3xl md:text-4xl font-serif font-bold text-primary mb-4 md:mb-6">Our Vision</h2>
               <p className="text-lg md:text-xl text-muted-foreground leading-relaxed italic font-light">
-                "To be a premier center of academic excellence that produces globally competitive,
-                ethically grounded, and socially responsible leaders who drive the sustainable
-                transformation of Ethiopia and the world."
+                {visionText}
               </p>
             </div>
 
@@ -309,12 +338,7 @@ export function LandingPage() {
               </div>
               <h2 className="text-3xl md:text-4xl font-serif font-bold text-primary mb-4 md:mb-6">Our Mission</h2>
               <ul className="space-y-4 md:space-y-6">
-                {[
-                  "Cultivating critical thinking and innovation through rigorous STEM education.",
-                  "Fostering integrity, discipline, and a spirit of service in every student.",
-                  "Providing a nurturing boarding environment that celebrates diversity and meritocracy.",
-                  "Equipping the next generation with the tools to solve complex national challenges."
-                ].map((mission, i) => (
+                {missionItems.map((mission, i) => (
                   <li key={i} className="flex items-start space-x-4">
                     <div className="w-6 h-6 mt-1 rounded-full bg-secondary/20 flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="w-3.5 h-3.5 text-secondary" />

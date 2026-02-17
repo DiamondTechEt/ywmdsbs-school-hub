@@ -43,6 +43,7 @@ import UserManagementPage from "./pages/admin/UserManagementPage";
 import CMSPages from "./pages/admin/CMSPages";
 import AboutPage from "./pages/public/AboutPage";
 import BlogPage from "./pages/public/BlogPage";
+import BlogPostPage from "./pages/public/BlogPostPage";
 import GalleryPage from "./pages/public/GalleryPage";
 import NotFound from "./pages/NotFound";
 
@@ -62,277 +63,278 @@ const App = () => (
               <Route path="/landing" element={<LandingPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/blog" element={<BlogPage />} />
+              <Route path="/blog/:slug" element={<BlogPostPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
               <Route element={<AppLayout />}>
                 {/* Shared */}
                 <Route path="/dashboard" element={<Dashboard />} />
-              
-              {/* Super Admin Routes */}
-              <Route 
-                path="/students" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Students />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teachers" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Teachers />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/classes" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Classes />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/subjects" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Subjects />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/academic-years" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <AcademicYears />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/semesters" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Semesters />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/audit-logs" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <AuditLogs />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/ban-management" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin', 'teacher']}>
-                    <BanManagement userRole="super_admin" />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/users" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <UserManagementPage />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/cms" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <CMSPages />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/admin/class-teacher" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <ClassTeacherAdmin />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/assessments" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Assessments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/grades" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Grades />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/analytics" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Analytics />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/settings" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Settings />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/enrollments" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <Enrollments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/assignments" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <ClassSubjectAssignments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/class-teacher-assignments" 
-                element={
-                  <ProtectedRoute allowedRoles={['super_admin']}>
-                    <ClassTeacherAdmin />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Teacher Routes */}
-              <Route 
-                path="/my-classes" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-dashboard" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherDashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-students" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherStudents />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-assessments" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherAssessments />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-grades" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherGrades />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-student-grades" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherStudentGrades />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/teacher-analytics" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <TeacherAnalytics />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/homeroom-results" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <HomeroomResults />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/upload-grades" 
-                element={
-                  <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
-                    <UploadGrades />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Student Routes */}
-              <Route 
-                path="/my-grades" 
-                element={
-                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
-                    <MyGrades />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/profile-settings" 
-                element={
-                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin', 'parent']}>
-                    <ProfileSettings />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/parent-portal" 
-                element={
-                  <ProtectedRoute allowedRoles={['parent']}>
-                    <ParentPortal />
-                  </ProtectedRoute>
-                } 
-              />
-              
-             
-              <Route 
-                path="/my-transcript" 
-                element={
-                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
-                    <MyTranscript />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route 
-                path="/my-performance" 
-                element={
-                  <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
-                    <MyPerformance />
-                  </ProtectedRoute>
-                } 
-              />
-            </Route>
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+
+                {/* Super Admin Routes */}
+                <Route
+                  path="/students"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Students />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teachers"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Teachers />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/classes"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Classes />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/subjects"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Subjects />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/academic-years"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <AcademicYears />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/semesters"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Semesters />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/audit-logs"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <AuditLogs />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/ban-management"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin', 'teacher']}>
+                      <BanManagement userRole="super_admin" />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/users"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <UserManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/cms"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <CMSPages />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/class-teacher"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <ClassTeacherAdmin />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assessments"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Assessments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/grades"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Grades />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/analytics"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Analytics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Settings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/enrollments"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <Enrollments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/assignments"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <ClassSubjectAssignments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/class-teacher-assignments"
+                  element={
+                    <ProtectedRoute allowedRoles={['super_admin']}>
+                      <ClassTeacherAdmin />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Teacher Routes */}
+                <Route
+                  path="/my-classes"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-dashboard"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-students"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherStudents />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-assessments"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherAssessments />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-grades"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherGrades />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-student-grades"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherStudentGrades />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/teacher-analytics"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <TeacherAnalytics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/homeroom-results"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <HomeroomResults />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/upload-grades"
+                  element={
+                    <ProtectedRoute allowedRoles={['teacher', 'super_admin']}>
+                      <UploadGrades />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Student Routes */}
+                <Route
+                  path="/my-grades"
+                  element={
+                    <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
+                      <MyGrades />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile-settings"
+                  element={
+                    <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin', 'parent']}>
+                      <ProfileSettings />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/parent-portal"
+                  element={
+                    <ProtectedRoute allowedRoles={['parent']}>
+                      <ParentPortal />
+                    </ProtectedRoute>
+                  }
+                />
+
+
+                <Route
+                  path="/my-transcript"
+                  element={
+                    <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
+                      <MyTranscript />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/my-performance"
+                  element={
+                    <ProtectedRoute allowedRoles={['student', 'teacher', 'super_admin']}>
+                      <MyPerformance />
+                    </ProtectedRoute>
+                  }
+                />
+              </Route>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </BanChecker>
         </BrowserRouter>
       </TooltipProvider>

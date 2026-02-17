@@ -17,7 +17,8 @@ import { RichTextEditor } from '@/components/shared/RichTextEditor';
 import {
   Plus, Edit, Trash2, Loader2, FileText, Image as ImageIcon,
   Eye, ArrowLeft, Globe, Calendar, PenLine, Upload, LayoutGrid,
-  BookOpen, Info, ImagePlus
+  BookOpen, Info, ImagePlus, Lightbulb, Trophy, CheckCircle, Save,
+  Heart, Share2
 } from 'lucide-react';
 
 const GALLERY_CATEGORIES = ['general', 'campus', 'events', 'sports', 'academics', 'celebrations'];
@@ -35,6 +36,10 @@ export default function CMSPages() {
   const [uploadingFeatured, setUploadingFeatured] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [deleteType, setDeleteType] = useState<'page' | 'gallery'>('page');
+  const [visionContent, setVisionContent] = useState('');
+  const [missionContent, setMissionContent] = useState('');
+  const [savingVision, setSavingVision] = useState(false);
+  const [savingMission, setSavingMission] = useState(false);
 
   const { data: pages, isLoading: pagesLoading } = useQuery({
     queryKey: ['cms-pages'],
@@ -60,6 +65,24 @@ export default function CMSPages() {
       const { data, error } = await supabase.from('cms_pages').select('*').eq('page_type', 'blog').order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  const { data: visionPage } = useQuery({
+    queryKey: ['cms-vision'],
+    queryFn: async () => {
+      const { data } = await supabase.from('cms_pages').select('*').eq('page_type', 'vision').maybeSingle();
+      if (data) setVisionContent(data.content || '');
+      return data;
+    },
+  });
+
+  const { data: missionPage } = useQuery({
+    queryKey: ['cms-mission'],
+    queryFn: async () => {
+      const { data } = await supabase.from('cms_pages').select('*').eq('page_type', 'mission').maybeSingle();
+      if (data) setMissionContent(data.content || '');
+      return data;
     },
   });
 
@@ -176,6 +199,34 @@ export default function CMSPages() {
   };
 
   const aboutPage = pages?.find(p => p.slug === 'about' && p.page_type === 'page');
+
+  const handleSaveVisionMission = async (type: 'vision' | 'mission', content: string) => {
+    const setter = type === 'vision' ? setSavingVision : setSavingMission;
+    setter(true);
+    try {
+      const existing = type === 'vision' ? visionPage : missionPage;
+      const payload = {
+        title: type === 'vision' ? 'Our Vision' : 'Our Mission',
+        slug: type,
+        content,
+        page_type: type,
+        is_published: true,
+      };
+      if (existing?.id) {
+        const { error } = await supabase.from('cms_pages').update(payload).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('cms_pages').insert(payload);
+        if (error) throw error;
+      }
+      toast.success(`${type === 'vision' ? 'Vision' : 'Mission'} saved successfully!`);
+      queryClient.invalidateQueries({ queryKey: [`cms-${type}`] });
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setter(false);
+    }
+  };
 
   const confirmDelete = (id: string, type: 'page' | 'gallery') => {
     setDeleteConfirmId(id);
@@ -343,6 +394,7 @@ export default function CMSPages() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="about" className="gap-2"><Info className="h-4 w-4" />About</TabsTrigger>
+          <TabsTrigger value="mission-vision" className="gap-2"><Lightbulb className="h-4 w-4" />Mission & Vision</TabsTrigger>
           <TabsTrigger value="blog" className="gap-2"><BookOpen className="h-4 w-4" />Blog</TabsTrigger>
           <TabsTrigger value="gallery" className="gap-2"><LayoutGrid className="h-4 w-4" />Gallery</TabsTrigger>
         </TabsList>
@@ -392,6 +444,102 @@ export default function CMSPages() {
           </Card>
         </TabsContent>
 
+        {/* ===== MISSION & VISION TAB ===== */}
+        <TabsContent value="mission-vision">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Vision Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5 text-primary" />
+                    Vision Statement
+                  </CardTitle>
+                  <CardDescription>The vision that guides your school's future direction.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Textarea
+                  value={visionContent}
+                  onChange={e => setVisionContent(e.target.value)}
+                  placeholder='e.g. "To be a premier center of academic excellence..."'
+                  rows={6}
+                  className="resize-none"
+                />
+                <Button
+                  onClick={() => handleSaveVisionMission('vision', visionContent)}
+                  disabled={savingVision}
+                  className="w-full"
+                >
+                  {savingVision ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save Vision
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Mission Card */}
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Trophy className="h-5 w-5 text-secondary" />
+                    Mission Points
+                  </CardTitle>
+                  <CardDescription>Enter each mission point on a new line. They will appear as a bulleted list on the landing page.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Textarea
+                  value={missionContent}
+                  onChange={e => setMissionContent(e.target.value)}
+                  placeholder={'Cultivating critical thinking...\nFostering integrity...\nProviding a nurturing environment...\nEquipping the next generation...'}
+                  rows={6}
+                  className="resize-none"
+                />
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <CheckCircle className="h-3 w-3" />
+                  Each line becomes a separate mission bullet point
+                </div>
+                <Button
+                  onClick={() => handleSaveVisionMission('mission', missionContent)}
+                  disabled={savingMission}
+                  className="w-full"
+                >
+                  {savingMission ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Save Mission
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Preview */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="p-6 rounded-2xl bg-primary/5 border border-primary/10">
+                  <h3 className="text-lg font-serif font-bold text-primary mb-3">Our Vision</h3>
+                  <p className="text-muted-foreground italic">{visionContent || 'No vision set yet.'}</p>
+                </div>
+                <div className="p-6 rounded-2xl bg-secondary/5 border border-secondary/10">
+                  <h3 className="text-lg font-serif font-bold text-primary mb-3">Our Mission</h3>
+                  <ul className="space-y-2">
+                    {(missionContent || '').split('\n').filter(Boolean).map((line: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <CheckCircle className="h-4 w-4 text-secondary mt-0.5 flex-shrink-0" />
+                        {line}
+                      </li>
+                    ))}
+                    {!missionContent && <li className="text-sm text-muted-foreground">No mission points set yet.</li>}
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ===== BLOG TAB ===== */}
         <TabsContent value="blog">
           <Card>
@@ -422,9 +570,21 @@ export default function CMSPages() {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-1">{post.excerpt || 'No summary'}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
+                        <div className="flex items-center gap-3 mt-1">
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(post.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Heart className="h-3 w-3 text-red-400" />
+                              {post.likes_count || 0}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Share2 className="h-3 w-3 text-blue-400" />
+                              {post.shares_count || 0}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button variant="ghost" size="icon" onClick={() => openEditPage(post)} title="Edit"><Edit className="h-4 w-4" /></Button>

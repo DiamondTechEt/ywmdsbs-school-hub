@@ -1,44 +1,55 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { PublicLayout } from '@/components/public/PublicLayout';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Calendar, BookOpen } from 'lucide-react';
-import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Loader2, Calendar, BookOpen, Search, Heart } from 'lucide-react';
+import { useState, useMemo } from 'react';
 
 export default function BlogPage() {
-  const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest' | 'popular'>('newest');
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ['cms-blog-public'],
     queryFn: async () => {
-      const { data } = await supabase.from('cms_pages').select('*').eq('page_type', 'blog').eq('is_published', true).order('created_at', { ascending: false });
+      const { data } = await supabase
+        .from('cms_pages')
+        .select('*')
+        .eq('page_type', 'blog')
+        .eq('is_published', true)
+        .order('created_at', { ascending: false });
       return data || [];
     },
   });
 
-  if (selectedPost) {
-    return (
-      <PublicLayout>
-        <article className="container mx-auto px-4 md:px-6 py-8 md:py-16 max-w-3xl">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedPost(null)} className="mb-6 text-muted-foreground">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Blog
-          </Button>
-          {selectedPost.featured_image && (
-            <img src={selectedPost.featured_image} alt={selectedPost.title} className="w-full h-64 md:h-80 object-cover rounded-2xl mb-8" />
-          )}
-          <div className="flex items-center gap-3 mb-4 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span>{new Date(selectedPost.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-          </div>
-          <h1 className="text-3xl md:text-4xl font-serif font-bold text-primary mb-6">{selectedPost.title}</h1>
-          <div className="prose prose-sm max-w-none prose-headings:text-primary prose-a:text-primary" dangerouslySetInnerHTML={{ __html: selectedPost.content || '' }} />
-        </article>
-      </PublicLayout>
-    );
-  }
+  const filteredPosts = useMemo(() => {
+    if (!posts) return [];
+    let result = [...posts];
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          (p.excerpt && p.excerpt.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort
+    if (sortOrder === 'newest') {
+      result.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sortOrder === 'oldest') {
+      result.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    } else if (sortOrder === 'popular') {
+      result.sort((a, b) => (b.likes_count || 0) - (a.likes_count || 0));
+    }
+
+    return result;
+  }, [posts, searchQuery, sortOrder]);
 
   return (
     <PublicLayout>
@@ -55,43 +66,100 @@ export default function BlogPage() {
         </div>
       </section>
 
+      {/* Search & Filter Bar */}
+      <section className="container mx-auto px-4 md:px-6 pt-8 md:pt-12">
+        <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search posts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Select value={sortOrder} onValueChange={(v: any) => setSortOrder(v)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest First</SelectItem>
+              <SelectItem value="oldest">Oldest First</SelectItem>
+              <SelectItem value="popular">Most Popular</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
+
       {/* Posts */}
-      <section className="container mx-auto px-4 md:px-6 py-12 md:py-16">
+      <section className="container mx-auto px-4 md:px-6 py-8 md:py-12">
         {isLoading ? (
-          <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-        ) : posts && posts.length > 0 ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : filteredPosts.length > 0 ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {posts.map((post: any) => (
-              <Card
-                key={post.id}
-                className="cursor-pointer group hover:shadow-lg transition-all duration-300 border-primary/10 overflow-hidden"
-                onClick={() => setSelectedPost(post)}
-              >
-                {post.featured_image && (
-                  <div className="h-48 overflow-hidden">
-                    <img src={post.featured_image} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  </div>
-                )}
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                    <Calendar className="h-3 w-3" />
-                    {new Date(post.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                  </div>
-                  <CardTitle className="text-lg group-hover:text-primary transition-colors line-clamp-2">{post.title}</CardTitle>
-                </CardHeader>
-                {post.excerpt && (
-                  <CardContent className="pt-0">
-                    <p className="text-sm text-muted-foreground line-clamp-3">{post.excerpt}</p>
-                  </CardContent>
-                )}
-              </Card>
+            {filteredPosts.map((post: any) => (
+              <Link to={`/blog/${post.slug}`} key={post.id} className="block">
+                <Card className="cursor-pointer group hover:shadow-lg transition-all duration-300 border-primary/10 overflow-hidden h-full">
+                  {post.featured_image && (
+                    <div className="h-48 overflow-hidden">
+                      <img
+                        src={post.featured_image}
+                        alt={post.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                  )}
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-3 w-3" />
+                        {new Date(post.created_at).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </div>
+                      {(post.likes_count || 0) > 0 && (
+                        <div className="flex items-center gap-1 text-red-400">
+                          <Heart className="h-3 w-3 fill-red-400" />
+                          <span>{post.likes_count}</span>
+                        </div>
+                      )}
+                    </div>
+                    <CardTitle className="text-lg group-hover:text-primary transition-colors line-clamp-2">
+                      {post.title}
+                    </CardTitle>
+                  </CardHeader>
+                  {post.excerpt && (
+                    <CardContent className="pt-0">
+                      <p className="text-sm text-muted-foreground line-clamp-3">{post.excerpt}</p>
+                    </CardContent>
+                  )}
+                </Card>
+              </Link>
             ))}
           </div>
         ) : (
           <div className="text-center py-16">
-            <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-muted-foreground">No blog posts yet</h3>
-            <p className="text-sm text-muted-foreground/60 mt-1">Check back soon for updates from our school.</p>
+            {searchQuery ? (
+              <>
+                <Search className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-muted-foreground">No matching posts</h3>
+                <p className="text-sm text-muted-foreground/60 mt-1">
+                  Try a different search term or clear your filter.
+                </p>
+              </>
+            ) : (
+              <>
+                <BookOpen className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-muted-foreground">No blog posts yet</h3>
+                <p className="text-sm text-muted-foreground/60 mt-1">
+                  Check back soon for updates from our school.
+                </p>
+              </>
+            )}
           </div>
         )}
       </section>

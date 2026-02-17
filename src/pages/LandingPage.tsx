@@ -21,7 +21,8 @@ import {
   Sparkles,
   Menu,
   X,
-  Star
+  Star,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export function LandingPage() {
@@ -54,9 +55,10 @@ export function LandingPage() {
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center space-x-8 text-sm font-medium">
-            <a href="#about" className="text-muted-foreground hover:text-primary transition-colors">About</a>
+            <Link to="/about" className="text-muted-foreground hover:text-primary transition-colors">About</Link>
+            <Link to="/blog" className="text-muted-foreground hover:text-primary transition-colors">Blog</Link>
+            <Link to="/gallery" className="text-muted-foreground hover:text-primary transition-colors">Gallery</Link>
             <a href="#academics" className="text-muted-foreground hover:text-primary transition-colors">Academics</a>
-            <a href="#vision" className="text-muted-foreground hover:text-primary transition-colors">Our Vision</a>
             <div className="h-4 w-px bg-border mx-2" />
             <Button asChild className="rounded-full px-8 shadow-lg hover:shadow-primary/20">
               <Link to="/auth">Portal Login</Link>
@@ -82,30 +84,30 @@ export function LandingPage() {
         {/* Mobile Sidebar */}
         <div className={`fixed top-0 right-0 h-[100vh] w-[280px] bg-gray-900 z-[100] md:hidden transition-transform duration-500 ease-in-out shadow-2xl border-l border-primary/5 ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="flex flex-col p-8 pt-24 space-y-6 text-xl font-serif font-bold text-white">
-            <a
-              href="#about"
+            <Link
+              to="/about"
               onClick={toggleMenu}
               className="flex items-center space-x-4 hover:translate-x-2 transition-transform"
             >
               <History className="w-5 h-5 text-white" />
               <span>About</span>
-            </a>
-            <a
-              href="#academics"
+            </Link>
+            <Link
+              to="/blog"
               onClick={toggleMenu}
               className="flex items-center space-x-4 hover:translate-x-2 transition-transform"
             >
               <Library className="w-5 h-5 text-white" />
-              <span>Academics</span>
-            </a>
-            <a
-              href="#vision"
+              <span>Blog</span>
+            </Link>
+            <Link
+              to="/gallery"
               onClick={toggleMenu}
               className="flex items-center space-x-4 hover:translate-x-2 transition-transform"
             >
-              <Lightbulb className="w-5 h-5 text-white" />
-              <span>Our Vision</span>
-            </a>
+              <ImageIcon className="w-5 h-5 text-white" />
+              <span>Gallery</span>
+            </Link>
             <div className="h-px bg-primary/10 my-4" />
             <Link
               to="/auth"
@@ -351,9 +353,10 @@ export function LandingPage() {
             <div>
               <h4 className="font-bold text-lg mb-4 md:mb-6 text-white/90">Quick Links</h4>
               <ul className="space-y-3 md:space-y-4 text-primary-foreground/60 text-sm md:text-base">
+                <li><Link to="/about" className="hover:text-white transition-colors">About Us</Link></li>
+                <li><Link to="/blog" className="hover:text-white transition-colors">Blog</Link></li>
+                <li><Link to="/gallery" className="hover:text-white transition-colors">Gallery</Link></li>
                 <li><Link to="/auth" className="hover:text-white transition-colors">School Portal</Link></li>
-                <li><Link to="/auth" className="hover:text-white transition-colors">Teacher Access</Link></li>
-                <li><a href="#academics" className="hover:text-white transition-colors">Academic Hub</a></li>
               </ul>
             </div>
 
